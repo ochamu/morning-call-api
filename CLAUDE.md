@@ -150,6 +150,12 @@ Development must follow a **small, iterative implementation** approach. Adhere t
    
    # Step 7: Push
    git push -u origin feature/domain-entities
+   
+   # Step 8: Request Pull Request creation
+   # IMPORTANT: After pushing, ask user to create and merge PR
+   # "Ready to create a Pull Request for [feature description]?"
+   # After user merges PR, checkout main and pull latest changes
+   # Then create new feature branch for next implementation
    ```
 
 3. **Commit Granularity Guidelines**
@@ -218,6 +224,31 @@ Example workflow:
 5. Wait for user confirmation
 6. Only proceed with git commit after receiving "yes"
 ```
+
+### Pull Request Workflow
+
+**IMPORTANT: After pushing changes, always request Pull Request creation and merge**
+
+1. **After Push**: Once feature branch is pushed, notify user:
+   - "Branch pushed successfully. Ready to create a Pull Request for [feature description]?"
+   
+2. **PR Creation**: Ask user to:
+   - Create Pull Request on GitHub
+   - Review changes
+   - Merge to main branch
+   
+3. **Post-Merge**: After user confirms merge:
+   ```bash
+   # Checkout main and pull latest changes
+   git checkout main
+   git pull origin main
+   
+   # Create new feature branch for next implementation
+   git checkout -b feature/next-feature
+   ```
+
+4. **Workflow Summary**:
+   - Implement → Test → Commit → Push → Create PR → Merge → Update main → New branch
 
 ## Go-Specific Guidelines
 
