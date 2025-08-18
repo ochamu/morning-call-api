@@ -29,9 +29,8 @@ func TestUserRepository_Create(t *testing.T) {
 		{
 			name: "同一IDのユーザーが既に存在する場合",
 			setup: func(r *UserRepository) {
-				err := r.Create(ctx, createTestUser("user1", "existing", "existing@example.com"))
-				if err != nil {
-					return
+				if err := r.Create(ctx, createTestUser("user1", "existing", "existing@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
 				}
 			},
 			user:    createTestUser("user1", "newuser", "new@example.com"),
@@ -684,8 +683,8 @@ func TestUserRepository_ConcurrentAccess(t *testing.T) {
 	if err != nil {
 		t.Errorf("Count() after concurrent access error = %v", err)
 	}
-	if count > numGoroutines {
-		t.Errorf("Count() = %d, want <= %d", count, numGoroutines)
+	if count != numGoroutines {
+		t.Errorf("Count() = %d, want %d", count, numGoroutines)
 	}
 }
 
