@@ -86,12 +86,16 @@ func TestMorningCallRepository_Create(t *testing.T) {
 				valueobject.MorningCallStatusScheduled,
 			),
 			setupFunc: func(r *MorningCallRepository) {
-				// 事前に同じIDのモーニングコールを作成
-				r.morningCalls["mc1"] = createTestMorningCall(
+				// 事前に同じIDのモーニングコールを作成（Createメソッド経由で一貫性を保つ）
+				ctx := context.Background()
+				if err := r.Create(ctx, createTestMorningCall(
 					"mc1", "user3", "user4",
 					time.Now().Add(2*time.Hour),
 					valueobject.MorningCallStatusScheduled,
-				)
+				)); err != nil {
+					// セットアップエラーはテスト失敗として扱う
+					t.Fatalf("Failed to setup test: %v", err)
+				}
 			},
 			wantErr: repository.ErrAlreadyExists,
 		},
@@ -155,12 +159,15 @@ func TestMorningCallRepository_FindByID(t *testing.T) {
 			name: "存在するモーニングコールの検索",
 			id:   "mc1",
 			setupFunc: func(r *MorningCallRepository) {
+				ctx := context.Background()
 				mc := createTestMorningCall(
 					"mc1", "user1", "user2",
 					time.Now().Add(1*time.Hour),
 					valueobject.MorningCallStatusScheduled,
 				)
-				r.morningCalls["mc1"] = mc
+				if err := r.Create(ctx, mc); err != nil {
+					t.Fatalf("Failed to setup test: %v", err)
+				}
 			},
 			want: createTestMorningCall(
 				"mc1", "user1", "user2",
@@ -220,13 +227,15 @@ func TestMorningCallRepository_Update(t *testing.T) {
 				valueobject.MorningCallStatusDelivered,
 			),
 			setupFunc: func(r *MorningCallRepository) {
+				ctx := context.Background()
 				mc := createTestMorningCall(
 					"mc1", "user1", "user2",
 					time.Now().Add(1*time.Hour),
 					valueobject.MorningCallStatusScheduled,
 				)
-				r.morningCalls["mc1"] = mc
-				r.addToIndexes(mc)
+				if err := r.Create(ctx, mc); err != nil {
+					t.Fatalf("Failed to setup test: %v", err)
+				}
 			},
 			wantErr: nil,
 		},
@@ -286,13 +295,15 @@ func TestMorningCallRepository_Delete(t *testing.T) {
 			name: "正常な削除",
 			id:   "mc1",
 			setupFunc: func(r *MorningCallRepository) {
+				ctx := context.Background()
 				mc := createTestMorningCall(
 					"mc1", "user1", "user2",
 					time.Now().Add(1*time.Hour),
 					valueobject.MorningCallStatusScheduled,
 				)
-				r.morningCalls["mc1"] = mc
-				r.addToIndexes(mc)
+				if err := r.Create(ctx, mc); err != nil {
+					t.Fatalf("Failed to setup test: %v", err)
+				}
 			},
 			wantErr: nil,
 		},
@@ -361,11 +372,15 @@ func TestMorningCallRepository_ExistsByID(t *testing.T) {
 			name: "存在するモーニングコール",
 			id:   "mc1",
 			setupFunc: func(r *MorningCallRepository) {
-				r.morningCalls["mc1"] = createTestMorningCall(
+				ctx := context.Background()
+				mc := createTestMorningCall(
 					"mc1", "user1", "user2",
 					time.Now().Add(1*time.Hour),
 					valueobject.MorningCallStatusScheduled,
 				)
+				if err := r.Create(ctx, mc); err != nil {
+					t.Fatalf("Failed to setup test: %v", err)
+				}
 			},
 			want: true,
 		},

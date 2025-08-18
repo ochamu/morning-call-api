@@ -320,7 +320,8 @@ func (r *MorningCallRepository) FindScheduledBetween(ctx context.Context, start,
 	return r.paginate(morningCalls, offset, limit), nil
 }
 
-// FindActiveByUserPair は特定のユーザーペア間のアクティブなモーニングコールを検索する
+// FindActiveByUserPair は特定の送信者から受信者へのアクティブなモーニングコールを検索する
+// 注意: モーニングコールには方向性があるため、senderIDとreceiverIDの順序は重要です
 func (r *MorningCallRepository) FindActiveByUserPair(ctx context.Context, senderID, receiverID string) ([]*entity.MorningCall, error) {
 	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
@@ -506,6 +507,8 @@ func (r *MorningCallRepository) removeIDFromSlice(slice []string, id string) []s
 }
 
 // generateUserPairKey はユーザーペアのインデックスキーを生成する
+// 注意: モーニングコールには送信者から受信者への方向性があるため、
+// 引数の順序を保持します（正規化しません）
 func (r *MorningCallRepository) generateUserPairKey(senderID, receiverID string) string {
 	return senderID + ":" + receiverID
 }
