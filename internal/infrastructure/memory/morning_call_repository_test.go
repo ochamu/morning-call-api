@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -891,8 +892,9 @@ func TestMorningCallRepository_Count(t *testing.T) {
 			name: "複数のモーニングコール",
 			setupFunc: func(r *MorningCallRepository) {
 				for i := 0; i < 5; i++ {
-					r.morningCalls[string(rune('0'+i))] = createTestMorningCall(
-						string(rune('0'+i)), "user1", "user2",
+					id := fmt.Sprintf("mc%d", i)
+					r.morningCalls[id] = createTestMorningCall(
+						id, "user1", "user2",
 						time.Now().Add(time.Duration(i)*time.Hour),
 						valueobject.MorningCallStatusScheduled,
 					)
@@ -1072,7 +1074,7 @@ func TestMorningCallRepository_FindAll(t *testing.T) {
 			setupFunc: func(r *MorningCallRepository) {
 				for i := 0; i < 3; i++ {
 					mc := createTestMorningCall(
-						string(rune('0'+i)), "user1", "user2",
+						fmt.Sprintf("mc%d", i), "user1", "user2",
 						time.Now().Add(time.Duration(i)*time.Hour),
 						valueobject.MorningCallStatusScheduled,
 					)
@@ -1089,7 +1091,7 @@ func TestMorningCallRepository_FindAll(t *testing.T) {
 			setupFunc: func(r *MorningCallRepository) {
 				for i := 0; i < 5; i++ {
 					mc := createTestMorningCall(
-						string(rune('0'+i)), "user1", "user2",
+						fmt.Sprintf("mc%d", i), "user1", "user2",
 						time.Now().Add(time.Duration(i)*time.Hour),
 						valueobject.MorningCallStatusScheduled,
 					)
@@ -1153,7 +1155,7 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 				var lastErr error
 				for j := 0; j < itemsPerGoroutine; j++ {
 					mc := createTestMorningCall(
-						string(rune('a'+goroutineID))+string(rune('0'+j)),
+						fmt.Sprintf("g%d_mc%d", goroutineID, j),
 						"user1", "user2",
 						time.Now().Add(time.Duration(j)*time.Hour),
 						valueobject.MorningCallStatusScheduled,
@@ -1186,7 +1188,7 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 		// 初期データを作成
 		for i := 0; i < 10; i++ {
 			mc := createTestMorningCall(
-				"initial"+string(rune('0'+i)),
+				fmt.Sprintf("initial_mc%d", i),
 				"user1", "user2",
 				time.Now().Add(time.Duration(i)*time.Hour),
 				valueobject.MorningCallStatusScheduled,
@@ -1210,7 +1212,7 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 		go func() {
 			for i := 0; i < 10; i++ {
 				mc := createTestMorningCall(
-					"concurrent"+string(rune('0'+i)),
+					fmt.Sprintf("concurrent_mc%d", i),
 					"user1", "user2",
 					time.Now().Add(time.Duration(i)*time.Hour),
 					valueobject.MorningCallStatusScheduled,
