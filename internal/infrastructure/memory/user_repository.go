@@ -4,7 +4,6 @@ import (
 	"context"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/ochamu/morning-call-api/internal/domain/entity"
 	"github.com/ochamu/morning-call-api/internal/domain/repository"
@@ -34,6 +33,7 @@ func NewUserRepository() *UserRepository {
 
 // Create は新しいユーザーを作成する
 func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
+	_ = ctx // 将来的なDB実装のために保持
 	if user == nil {
 		return repository.ErrInvalidArgument
 	}
@@ -69,6 +69,7 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
 
 // FindByID はIDでユーザーを検索する
 func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -82,6 +83,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User,
 
 // FindByUsername はユーザー名でユーザーを検索する
 func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*entity.User, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -96,6 +98,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 
 // FindByEmail はメールアドレスでユーザーを検索する
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -110,6 +113,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity
 
 // Update はユーザー情報を更新する
 func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
+	_ = ctx // 将来的なDB実装のために保持
 	if user == nil {
 		return repository.ErrInvalidArgument
 	}
@@ -146,9 +150,8 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 		r.emailIndex[user.Email] = user.ID
 	}
 
-	// ユーザー情報を更新（UpdatedAtを現在時刻に設定）
+	// ユーザー情報を更新
 	userCopy := r.copyUser(user)
-	userCopy.UpdatedAt = time.Now()
 	r.users[userCopy.ID] = userCopy
 
 	return nil
@@ -156,6 +159,7 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 
 // Delete はユーザーを削除する
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -176,6 +180,7 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 
 // ExistsByID はIDでユーザーの存在を確認する
 func (r *UserRepository) ExistsByID(ctx context.Context, id string) (bool, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -185,6 +190,7 @@ func (r *UserRepository) ExistsByID(ctx context.Context, id string) (bool, error
 
 // ExistsByUsername はユーザー名でユーザーの存在を確認する
 func (r *UserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -194,6 +200,7 @@ func (r *UserRepository) ExistsByUsername(ctx context.Context, username string) 
 
 // ExistsByEmail はメールアドレスでユーザーの存在を確認する
 func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -203,6 +210,7 @@ func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 
 // FindAll はすべてのユーザーを取得する（ページネーション対応）
 func (r *UserRepository) FindAll(ctx context.Context, offset, limit int) ([]*entity.User, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -242,6 +250,7 @@ func (r *UserRepository) FindAll(ctx context.Context, offset, limit int) ([]*ent
 
 // Count は総ユーザー数を取得する
 func (r *UserRepository) Count(ctx context.Context) (int, error) {
+	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
