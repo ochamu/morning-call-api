@@ -1193,7 +1193,9 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 				time.Now().Add(time.Duration(i)*time.Hour),
 				valueobject.MorningCallStatusScheduled,
 			)
-			repo.Create(ctx, mc)
+			if err := repo.Create(ctx, mc); err != nil {
+				t.Fatalf("Failed to create initial data: %v", err)
+			}
 		}
 
 		done := make(chan bool)
@@ -1201,9 +1203,18 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 		// 読み込みゴルーチン
 		go func() {
 			for i := 0; i < 100; i++ {
-				repo.FindAll(ctx, 0, 100)
-				repo.Count(ctx)
-				repo.FindBySenderID(ctx, "user1", 0, 10)
+				_, err := repo.FindAll(ctx, 0, 100)
+				if err != nil {
+					t.Errorf("FindAll failed: %v", err)
+				}
+				_, err = repo.Count(ctx)
+				if err != nil {
+					t.Errorf("Count failed: %v", err)
+				}
+				_, err = repo.FindBySenderID(ctx, "user1", 0, 10)
+				if err != nil {
+					t.Errorf("FindBySenderID failed: %v", err)
+				}
 			}
 			done <- true
 		}()
@@ -1217,7 +1228,9 @@ func TestMorningCallRepository_ConcurrentAccess(t *testing.T) {
 					time.Now().Add(time.Duration(i)*time.Hour),
 					valueobject.MorningCallStatusScheduled,
 				)
-				repo.Create(ctx, mc)
+				if err := repo.Create(ctx, mc); err != nil {
+					t.Errorf("Create failed in concurrent write: %v", err)
+				}
 			}
 			done <- true
 		}()
