@@ -29,7 +29,9 @@ func TestUserRepository_Create(t *testing.T) {
 		{
 			name: "同一IDのユーザーが既に存在する場合",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "existing", "existing@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "existing", "existing@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			user:    createTestUser("user1", "newuser", "new@example.com"),
 			wantErr: repository.ErrAlreadyExists,
@@ -37,7 +39,9 @@ func TestUserRepository_Create(t *testing.T) {
 		{
 			name: "同一ユーザー名が既に存在する場合",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "testuser", "existing@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "testuser", "existing@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			user:    createTestUser("user2", "testuser", "new@example.com"),
 			wantErr: repository.ErrAlreadyExists,
@@ -45,7 +49,9 @@ func TestUserRepository_Create(t *testing.T) {
 		{
 			name: "同一メールアドレスが既に存在する場合",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "existing", "test@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "existing", "test@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			user:    createTestUser("user2", "newuser", "test@example.com"),
 			wantErr: repository.ErrAlreadyExists,
@@ -78,7 +84,9 @@ func TestUserRepository_FindByID(t *testing.T) {
 
 	// テスト用ユーザーを作成
 	user := createTestUser("user1", "testuser", "test@example.com")
-	repo.Create(ctx, user)
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -122,7 +130,9 @@ func TestUserRepository_FindByUsername(t *testing.T) {
 
 	// テスト用ユーザーを作成
 	user := createTestUser("user1", "testuser", "test@example.com")
-	repo.Create(ctx, user)
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
 
 	tests := []struct {
 		name     string
@@ -166,7 +176,9 @@ func TestUserRepository_FindByEmail(t *testing.T) {
 
 	// テスト用ユーザーを作成
 	user := createTestUser("user1", "testuser", "test@example.com")
-	repo.Create(ctx, user)
+	if err := repo.Create(ctx, user); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -216,7 +228,9 @@ func TestUserRepository_Update(t *testing.T) {
 		{
 			name: "ユーザー情報の更新成功",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "oldname", "old@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "oldname", "old@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			update:  createTestUser("user1", "newname", "new@example.com"),
 			wantErr: nil,
@@ -229,8 +243,12 @@ func TestUserRepository_Update(t *testing.T) {
 		{
 			name: "ユーザー名が他のユーザーと重複",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "user1", "user1@example.com"))
-				r.Create(ctx, createTestUser("user2", "user2", "user2@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "user1", "user1@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
+				if err := r.Create(ctx, createTestUser("user2", "user2", "user2@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			update:  createTestUser("user1", "user2", "newemail@example.com"),
 			wantErr: repository.ErrAlreadyExists,
@@ -238,8 +256,12 @@ func TestUserRepository_Update(t *testing.T) {
 		{
 			name: "メールアドレスが他のユーザーと重複",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "user1", "user1@example.com"))
-				r.Create(ctx, createTestUser("user2", "user2", "user2@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "user1", "user1@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
+				if err := r.Create(ctx, createTestUser("user2", "user2", "user2@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			update:  createTestUser("user1", "newname", "user2@example.com"),
 			wantErr: repository.ErrAlreadyExists,
@@ -293,7 +315,9 @@ func TestUserRepository_Delete(t *testing.T) {
 		{
 			name: "ユーザーの削除成功",
 			setup: func(r *UserRepository) {
-				r.Create(ctx, createTestUser("user1", "testuser", "test@example.com"))
+				if err := r.Create(ctx, createTestUser("user1", "testuser", "test@example.com")); err != nil {
+					t.Fatalf("Setup failed: %v", err)
+				}
 			},
 			id:      "user1",
 			wantErr: nil,
@@ -333,7 +357,9 @@ func TestUserRepository_ExistsByID(t *testing.T) {
 	repo := NewUserRepository()
 
 	// テスト用ユーザーを作成
-	repo.Create(ctx, createTestUser("user1", "testuser", "test@example.com"))
+	if err := repo.Create(ctx, createTestUser("user1", "testuser", "test@example.com")); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
 
 	tests := []struct {
 		name    string
@@ -381,7 +407,9 @@ func TestUserRepository_FindAll(t *testing.T) {
 			"username"+strconv.Itoa(i+1),
 			"email"+strconv.Itoa(i+1)+"@example.com",
 		)
-		repo.Create(ctx, user)
+		if err := repo.Create(ctx, user); err != nil {
+			t.Fatalf("Failed to create test user %s: %v", id, err)
+		}
 	}
 
 	tests := []struct {
@@ -482,7 +510,9 @@ func TestUserRepository_FindAll_SortOrderConsistency(t *testing.T) {
 	userIDs := []string{"zulu", "alpha", "mike", "bravo", "yankee", "charlie"}
 	for _, id := range userIDs {
 		user := createTestUser(id, "user_"+id, id+"@example.com")
-		repo.Create(ctx, user)
+		if err := repo.Create(ctx, user); err != nil {
+			t.Fatalf("Failed to create test user %s: %v", id, err)
+		}
 	}
 
 	// 複数回FindAllを呼び出して、常に同じ順序で返されることを確認
@@ -515,7 +545,9 @@ func TestUserRepository_FindAll_PaginationConsistency(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		id := "user" + string(rune('a'+i))
 		user := createTestUser(id, "username_"+id, id+"@example.com")
-		repo.Create(ctx, user)
+		if err := repo.Create(ctx, user); err != nil {
+			t.Fatalf("Failed to create test user %s: %v", id, err)
+		}
 	}
 
 	// ページサイズ3で全データを取得
@@ -575,7 +607,9 @@ func TestUserRepository_Count(t *testing.T) {
 			"user"+strconv.Itoa(i),
 			"user"+strconv.Itoa(i)+"@example.com",
 		)
-		repo.Create(ctx, user)
+		if err := repo.Create(ctx, user); err != nil {
+			t.Fatalf("Failed to create test user user%d: %v", i, err)
+		}
 	}
 
 	// 3件になっているか確認
@@ -588,7 +622,9 @@ func TestUserRepository_Count(t *testing.T) {
 	}
 
 	// 1件削除
-	repo.Delete(ctx, "user1")
+	if err := repo.Delete(ctx, "user1"); err != nil {
+		t.Fatalf("Failed to delete user: %v", err)
+	}
 
 	// 2件になっているか確認
 	count, err = repo.Count(ctx)
@@ -647,8 +683,8 @@ func TestUserRepository_ConcurrentAccess(t *testing.T) {
 	if err != nil {
 		t.Errorf("Count() after concurrent access error = %v", err)
 	}
-	if count > numGoroutines {
-		t.Errorf("Count() = %d, want <= %d", count, numGoroutines)
+	if count != numGoroutines {
+		t.Errorf("Count() = %d, want %d", count, numGoroutines)
 	}
 }
 
@@ -658,7 +694,9 @@ func TestUserRepository_DataIsolation(t *testing.T) {
 
 	// ユーザーを作成
 	original := createTestUser("user1", "original", "original@example.com")
-	repo.Create(ctx, original)
+	if err := repo.Create(ctx, original); err != nil {
+		t.Fatalf("Failed to create test user: %v", err)
+	}
 
 	// FindByIDで取得
 	retrieved, _ := repo.FindByID(ctx, "user1")
