@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"errors"
 	"strconv"
 	"sync"
 	"testing"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/ochamu/morning-call-api/internal/domain/entity"
 	"github.com/ochamu/morning-call-api/internal/domain/repository"
-	"github.com/ochamu/morning-call-api/internal/domain/valueobject"
 )
 
 func TestUserRepository_Create(t *testing.T) {
@@ -71,7 +71,7 @@ func TestUserRepository_Create(t *testing.T) {
 			}
 
 			err := repo.Create(ctx, tt.user)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Create() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -111,7 +111,7 @@ func TestUserRepository_FindByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := repo.FindByID(ctx, tt.id)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("FindByID() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -157,7 +157,7 @@ func TestUserRepository_FindByUsername(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := repo.FindByUsername(ctx, tt.username)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("FindByUsername() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -203,7 +203,7 @@ func TestUserRepository_FindByEmail(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := repo.FindByEmail(ctx, tt.email)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("FindByEmail() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -281,7 +281,7 @@ func TestUserRepository_Update(t *testing.T) {
 			}
 
 			err := repo.Update(ctx, tt.update)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Update() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
@@ -337,14 +337,14 @@ func TestUserRepository_Delete(t *testing.T) {
 			}
 
 			err := repo.Delete(ctx, tt.id)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("Delete() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
 			// 削除が成功した場合、ユーザーが本当に削除されているか確認
 			if err == nil {
 				_, findErr := repo.FindByID(ctx, tt.id)
-				if findErr != repository.ErrNotFound {
+				if !errors.Is(findErr, repository.ErrNotFound) {
 					t.Errorf("Deleted user still exists")
 				}
 			}
@@ -384,7 +384,7 @@ func TestUserRepository_ExistsByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := repo.ExistsByID(ctx, tt.id)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("ExistsByID() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -481,7 +481,7 @@ func TestUserRepository_FindAll(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := repo.FindAll(ctx, tt.offset, tt.limit)
-			if err != tt.wantErr {
+			if !errors.Is(err, tt.wantErr) {
 				t.Errorf("FindAll() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -657,20 +657,20 @@ func TestUserRepository_ConcurrentAccess(t *testing.T) {
 
 			// Create
 			err := repo.Create(ctx, user)
-			if err != nil && err != repository.ErrAlreadyExists {
+			if err != nil && !errors.Is(err, repository.ErrAlreadyExists) {
 				t.Errorf("Concurrent Create() error = %v", err)
 			}
 
 			// Read
 			_, err = repo.FindByID(ctx, user.ID)
-			if err != nil && err != repository.ErrNotFound {
+			if err != nil && !errors.Is(err, repository.ErrNotFound) {
 				t.Errorf("Concurrent FindByID() error = %v", err)
 			}
 
 			// Update
 			user.Username = "updated" + user.Username
 			err = repo.Update(ctx, user)
-			if err != nil && err != repository.ErrNotFound && err != repository.ErrAlreadyExists {
+			if err != nil && !errors.Is(err, repository.ErrNotFound) && !errors.Is(err, repository.ErrAlreadyExists) {
 				t.Errorf("Concurrent Update() error = %v", err)
 			}
 		}(i)
@@ -720,7 +720,7 @@ func TestUserRepository_DataIsolation(t *testing.T) {
 // ヘルパー関数：テスト用ユーザーを作成
 func createTestUser(id, username, email string) *entity.User {
 	user, reason := entity.NewUser(id, username, email)
-	if reason != valueobject.OK() {
+	if reason.IsNG() {
 		// テスト用なので、エラーの場合は直接構造体を作成
 		return &entity.User{
 			ID:        id,
