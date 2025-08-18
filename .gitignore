@@ -34,3 +34,5 @@ go.work.sum
 *.swo
 *~
 .DS_Store
+
+.serena/
