@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -377,19 +378,19 @@ func TestUserRepository_FindAll(t *testing.T) {
 	for i, id := range userIDs {
 		user := createTestUser(
 			id,
-			"username"+string(rune('0'+i+1)),
-			"email"+string(rune('0'+i+1))+"@example.com",
+			"username"+strconv.Itoa(i+1),
+			"email"+strconv.Itoa(i+1)+"@example.com",
 		)
 		repo.Create(ctx, user)
 	}
 
 	tests := []struct {
-		name         string
-		offset       int
-		limit        int
-		wantCount    int
-		wantUserIDs  []string // 期待されるユーザーIDの順序
-		wantErr      error
+		name        string
+		offset      int
+		limit       int
+		wantCount   int
+		wantUserIDs []string // 期待されるユーザーIDの順序
+		wantErr     error
 	}{
 		{
 			name:        "全ユーザー取得（ID順ソート確認）",
@@ -486,7 +487,7 @@ func TestUserRepository_FindAll_SortOrderConsistency(t *testing.T) {
 
 	// 複数回FindAllを呼び出して、常に同じ順序で返されることを確認
 	expectedOrder := []string{"alpha", "bravo", "charlie", "mike", "yankee", "zulu"}
-	
+
 	for i := 0; i < 5; i++ {
 		users, err := repo.FindAll(ctx, 0, 10)
 		if err != nil {
@@ -499,7 +500,7 @@ func TestUserRepository_FindAll_SortOrderConsistency(t *testing.T) {
 
 		for j, user := range users {
 			if user.ID != expectedOrder[j] {
-				t.Errorf("Iteration %d: user[%d].ID = %s, want %s (ソート順が一貫していない)", 
+				t.Errorf("Iteration %d: user[%d].ID = %s, want %s (ソート順が一貫していない)",
 					i+1, j, user.ID, expectedOrder[j])
 			}
 		}
@@ -570,9 +571,9 @@ func TestUserRepository_Count(t *testing.T) {
 	// ユーザーを追加
 	for i := 1; i <= 3; i++ {
 		user := createTestUser(
-			"user"+string(rune('0'+i)),
-			"user"+string(rune('0'+i)),
-			"user"+string(rune('0'+i))+"@example.com",
+			"user"+strconv.Itoa(i),
+			"user"+strconv.Itoa(i),
+			"user"+strconv.Itoa(i)+"@example.com",
 		)
 		repo.Create(ctx, user)
 	}
@@ -613,9 +614,9 @@ func TestUserRepository_ConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			user := createTestUser(
-				"user"+string(rune('0'+idx)),
-				"user"+string(rune('0'+idx)),
-				"user"+string(rune('0'+idx))+"@example.com",
+				"user"+strconv.Itoa(idx),
+				"user"+strconv.Itoa(idx),
+				"user"+strconv.Itoa(idx)+"@example.com",
 			)
 
 			// Create
