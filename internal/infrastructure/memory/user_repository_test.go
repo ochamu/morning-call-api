@@ -372,64 +372,80 @@ func TestUserRepository_FindAll(t *testing.T) {
 	ctx := context.Background()
 	repo := NewUserRepository()
 
-	// テスト用ユーザーを複数作成
-	for i := 1; i <= 5; i++ {
+	// テスト用ユーザーを複数作成（IDが辞書順でソートされるよう意図的に設定）
+	userIDs := []string{"user3", "user1", "user5", "user2", "user4"}
+	for i, id := range userIDs {
 		user := createTestUser(
-			"user"+string(rune('0'+i)),
-			"user"+string(rune('0'+i)),
-			"user"+string(rune('0'+i))+"@example.com",
+			id,
+			"username"+string(rune('0'+i+1)),
+			"email"+string(rune('0'+i+1))+"@example.com",
 		)
 		repo.Create(ctx, user)
 	}
 
 	tests := []struct {
-		name      string
-		offset    int
-		limit     int
-		wantCount int
-		wantErr   error
+		name         string
+		offset       int
+		limit        int
+		wantCount    int
+		wantUserIDs  []string // 期待されるユーザーIDの順序
+		wantErr      error
 	}{
 		{
-			name:      "全ユーザー取得",
-			offset:    0,
-			limit:     10,
-			wantCount: 5,
-			wantErr:   nil,
+			name:        "全ユーザー取得（ID順ソート確認）",
+			offset:      0,
+			limit:       10,
+			wantCount:   5,
+			wantUserIDs: []string{"user1", "user2", "user3", "user4", "user5"},
+			wantErr:     nil,
 		},
 		{
-			name:      "ページネーション（最初の3件）",
-			offset:    0,
-			limit:     3,
-			wantCount: 3,
-			wantErr:   nil,
+			name:        "ページネーション（最初の3件）",
+			offset:      0,
+			limit:       3,
+			wantCount:   3,
+			wantUserIDs: []string{"user1", "user2", "user3"},
+			wantErr:     nil,
 		},
 		{
-			name:      "ページネーション（2件目から2件）",
-			offset:    2,
-			limit:     2,
-			wantCount: 2,
-			wantErr:   nil,
+			name:        "ページネーション（2件目から2件）",
+			offset:      2,
+			limit:       2,
+			wantCount:   2,
+			wantUserIDs: []string{"user3", "user4"},
+			wantErr:     nil,
 		},
 		{
-			name:      "offsetが総数を超える場合",
-			offset:    10,
-			limit:     5,
-			wantCount: 0,
-			wantErr:   nil,
+			name:        "offsetが総数を超える場合",
+			offset:      10,
+			limit:       5,
+			wantCount:   0,
+			wantUserIDs: []string{},
+			wantErr:     nil,
 		},
 		{
-			name:      "負のoffset",
-			offset:    -1,
-			limit:     5,
-			wantCount: 0,
-			wantErr:   repository.ErrInvalidArgument,
+			name:        "負のoffset",
+			offset:      -1,
+			limit:       5,
+			wantCount:   0,
+			wantUserIDs: nil,
+			wantErr:     repository.ErrInvalidArgument,
 		},
 		{
-			name:      "負のlimit",
-			offset:    0,
-			limit:     -1,
-			wantCount: 0,
-			wantErr:   repository.ErrInvalidArgument,
+			name:        "負のlimit",
+			offset:      0,
+			limit:       -1,
+			wantCount:   0,
+			wantUserIDs: nil,
+			wantErr:     repository.ErrInvalidArgument,
+		},
+		{
+			name:        "limit=0の場合は空のスライス",
+			offset:      0,
+			limit:       0,
+			wantCount:   0,
+			wantUserIDs: []string{},
+			wantErr:     nil,
 		},
 	}
 
@@ -440,10 +456,101 @@ func TestUserRepository_FindAll(t *testing.T) {
 				t.Errorf("FindAll() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if err == nil && len(got) != tt.wantCount {
-				t.Errorf("FindAll() returned %d users, want %d", len(got), tt.wantCount)
+			if err == nil {
+				if len(got) != tt.wantCount {
+					t.Errorf("FindAll() returned %d users, want %d", len(got), tt.wantCount)
+				}
+				// ソート順の検証
+				if tt.wantUserIDs != nil {
+					for i, user := range got {
+						if user.ID != tt.wantUserIDs[i] {
+							t.Errorf("FindAll()[%d].ID = %s, want %s (ソート順が不正)", i, user.ID, tt.wantUserIDs[i])
+						}
+					}
+				}
 			}
 		})
+	}
+}
+
+func TestUserRepository_FindAll_SortOrderConsistency(t *testing.T) {
+	ctx := context.Background()
+	repo := NewUserRepository()
+
+	// ランダムな順序でユーザーを作成
+	userIDs := []string{"zulu", "alpha", "mike", "bravo", "yankee", "charlie"}
+	for _, id := range userIDs {
+		user := createTestUser(id, "user_"+id, id+"@example.com")
+		repo.Create(ctx, user)
+	}
+
+	// 複数回FindAllを呼び出して、常に同じ順序で返されることを確認
+	expectedOrder := []string{"alpha", "bravo", "charlie", "mike", "yankee", "zulu"}
+	
+	for i := 0; i < 5; i++ {
+		users, err := repo.FindAll(ctx, 0, 10)
+		if err != nil {
+			t.Fatalf("FindAll() error on iteration %d: %v", i+1, err)
+		}
+
+		if len(users) != len(expectedOrder) {
+			t.Errorf("Iteration %d: got %d users, want %d", i+1, len(users), len(expectedOrder))
+		}
+
+		for j, user := range users {
+			if user.ID != expectedOrder[j] {
+				t.Errorf("Iteration %d: user[%d].ID = %s, want %s (ソート順が一貫していない)", 
+					i+1, j, user.ID, expectedOrder[j])
+			}
+		}
+	}
+}
+
+func TestUserRepository_FindAll_PaginationConsistency(t *testing.T) {
+	ctx := context.Background()
+	repo := NewUserRepository()
+
+	// 10個のユーザーを作成
+	for i := 0; i < 10; i++ {
+		id := "user" + string(rune('a'+i))
+		user := createTestUser(id, "username_"+id, id+"@example.com")
+		repo.Create(ctx, user)
+	}
+
+	// ページサイズ3で全データを取得
+	var allUsers []*entity.User
+	pageSize := 3
+	for offset := 0; ; offset += pageSize {
+		page, err := repo.FindAll(ctx, offset, pageSize)
+		if err != nil {
+			t.Fatalf("FindAll() error at offset %d: %v", offset, err)
+		}
+		if len(page) == 0 {
+			break
+		}
+		allUsers = append(allUsers, page...)
+	}
+
+	// 全データが取得できたか確認
+	if len(allUsers) != 10 {
+		t.Errorf("Total users collected = %d, want 10", len(allUsers))
+	}
+
+	// 重複がないか確認
+	seen := make(map[string]bool)
+	for _, user := range allUsers {
+		if seen[user.ID] {
+			t.Errorf("User %s appears more than once in paginated results", user.ID)
+		}
+		seen[user.ID] = true
+	}
+
+	// ソート順が正しいか確認
+	for i := 1; i < len(allUsers); i++ {
+		if allUsers[i-1].ID >= allUsers[i].ID {
+			t.Errorf("Users not in correct order: %s >= %s at positions %d, %d",
+				allUsers[i-1].ID, allUsers[i].ID, i-1, i)
+		}
 	}
 }
 

@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"sort"
 	"sync"
 	"time"
 
@@ -145,10 +146,10 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 		r.emailIndex[user.Email] = user.ID
 	}
 
-	// ユーザー情報を更新
+	// ユーザー情報を更新（UpdatedAtを現在時刻に設定）
 	userCopy := r.copyUser(user)
 	userCopy.UpdatedAt = time.Now()
-	r.users[user.ID] = userCopy
+	r.users[userCopy.ID] = userCopy
 
 	return nil
 }
@@ -209,15 +210,25 @@ func (r *UserRepository) FindAll(ctx context.Context, offset, limit int) ([]*ent
 		return nil, repository.ErrInvalidArgument
 	}
 
-	// すべてのユーザーをスライスに変換
+	// limit が 0 の場合は空のスライスを返す
+	if limit == 0 {
+		return []*entity.User{}, nil
+	}
+
+	// すべてのユーザーをスライスに変換（IDでソートして順序を保証）
 	allUsers := make([]*entity.User, 0, len(r.users))
 	for _, user := range r.users {
 		allUsers = append(allUsers, r.copyUser(user))
 	}
 
+	// IDでソートして一貫した順序を保証
+	sort.Slice(allUsers, func(i, j int) bool {
+		return allUsers[i].ID < allUsers[j].ID
+	})
+
 	// ページネーション処理
 	start := offset
-	if start > len(allUsers) {
+	if start >= len(allUsers) {
 		return []*entity.User{}, nil
 	}
 
