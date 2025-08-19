@@ -719,15 +719,16 @@ func TestUserRepository_DataIsolation(t *testing.T) {
 
 // ヘルパー関数：テスト用ユーザーを作成
 func createTestUser(id, username, email string) *entity.User {
-	user, reason := entity.NewUser(id, username, email)
+	user, reason := entity.NewUser(id, username, email, "hashedpassword")
 	if reason.IsNG() {
 		// テスト用なので、エラーの場合は直接構造体を作成
 		return &entity.User{
-			ID:        id,
-			Username:  username,
-			Email:     email,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
+			ID:           id,
+			Username:     username,
+			Email:        email,
+			PasswordHash: "hashedpassword",
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
 		}
 	}
 	return user

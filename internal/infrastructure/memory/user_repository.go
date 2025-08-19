@@ -3,6 +3,7 @@ package memory
 import (
 	"context"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/ochamu/morning-call-api/internal/domain/entity"
@@ -46,23 +47,23 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
 		return repository.ErrAlreadyExists
 	}
 
-	// ユーザー名の重複チェック
-	if _, exists := r.usernameIndex[user.Username]; exists {
+	// ユーザー名の重複チェック（大小文字を区別しない）
+	if _, exists := r.usernameIndex[strings.ToLower(user.Username)]; exists {
 		return repository.ErrAlreadyExists
 	}
 
-	// メールアドレスの重複チェック
-	if _, exists := r.emailIndex[user.Email]; exists {
+	// メールアドレスの重複チェック（大小文字を区別しない）
+	if _, exists := r.emailIndex[strings.ToLower(user.Email)]; exists {
 		return repository.ErrAlreadyExists
 	}
 
 	// ユーザーのコピーを作成（外部からの変更を防ぐ）
 	userCopy := r.copyUser(user)
 
-	// 保存
+	// 保存（インデックスは小文字で正規化）
 	r.users[userCopy.ID] = userCopy
-	r.usernameIndex[userCopy.Username] = userCopy.ID
-	r.emailIndex[userCopy.Email] = userCopy.ID
+	r.usernameIndex[strings.ToLower(userCopy.Username)] = userCopy.ID
+	r.emailIndex[strings.ToLower(userCopy.Email)] = userCopy.ID
 
 	return nil
 }
@@ -81,13 +82,13 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*entity.User,
 	return r.copyUser(user), nil
 }
 
-// FindByUsername はユーザー名でユーザーを検索する
+// FindByUsername はユーザー名でユーザーを検索する（大小文字を区別しない）
 func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*entity.User, error) {
 	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	id, exists := r.usernameIndex[username]
+	id, exists := r.usernameIndex[strings.ToLower(username)]
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
@@ -96,13 +97,13 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	return r.copyUser(user), nil
 }
 
-// FindByEmail はメールアドレスでユーザーを検索する
+// FindByEmail はメールアドレスでユーザーを検索する（大小文字を区別しない）
 func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	id, exists := r.emailIndex[email]
+	id, exists := r.emailIndex[strings.ToLower(email)]
 	if !exists {
 		return nil, repository.ErrNotFound
 	}
@@ -128,26 +129,26 @@ func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
 
 	// ユーザー名が変更された場合のインデックス更新
 	if existing.Username != user.Username {
-		// 新しいユーザー名が既に使用されていないか確認
-		if _, exists := r.usernameIndex[user.Username]; exists {
+		// 新しいユーザー名が既に使用されていないか確認（大小文字を区別しない）
+		if _, exists := r.usernameIndex[strings.ToLower(user.Username)]; exists {
 			return repository.ErrAlreadyExists
 		}
 		// 古いインデックスを削除
-		delete(r.usernameIndex, existing.Username)
+		delete(r.usernameIndex, strings.ToLower(existing.Username))
 		// 新しいインデックスを追加
-		r.usernameIndex[user.Username] = user.ID
+		r.usernameIndex[strings.ToLower(user.Username)] = user.ID
 	}
 
 	// メールアドレスが変更された場合のインデックス更新
 	if existing.Email != user.Email {
-		// 新しいメールアドレスが既に使用されていないか確認
-		if _, exists := r.emailIndex[user.Email]; exists {
+		// 新しいメールアドレスが既に使用されていないか確認（大小文字を区別しない）
+		if _, exists := r.emailIndex[strings.ToLower(user.Email)]; exists {
 			return repository.ErrAlreadyExists
 		}
 		// 古いインデックスを削除
-		delete(r.emailIndex, existing.Email)
+		delete(r.emailIndex, strings.ToLower(existing.Email))
 		// 新しいインデックスを追加
-		r.emailIndex[user.Email] = user.ID
+		r.emailIndex[strings.ToLower(user.Email)] = user.ID
 	}
 
 	// ユーザー情報を更新
@@ -168,9 +169,9 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 		return repository.ErrNotFound
 	}
 
-	// インデックスから削除
-	delete(r.usernameIndex, user.Username)
-	delete(r.emailIndex, user.Email)
+	// インデックスから削除（大小文字を区別しない）
+	delete(r.usernameIndex, strings.ToLower(user.Username))
+	delete(r.emailIndex, strings.ToLower(user.Email))
 
 	// ユーザーを削除
 	delete(r.users, id)
@@ -188,23 +189,23 @@ func (r *UserRepository) ExistsByID(ctx context.Context, id string) (bool, error
 	return exists, nil
 }
 
-// ExistsByUsername はユーザー名でユーザーの存在を確認する
+// ExistsByUsername はユーザー名でユーザーの存在を確認する（大小文字を区別しない）
 func (r *UserRepository) ExistsByUsername(ctx context.Context, username string) (bool, error) {
 	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	_, exists := r.usernameIndex[username]
+	_, exists := r.usernameIndex[strings.ToLower(username)]
 	return exists, nil
 }
 
-// ExistsByEmail はメールアドレスでユーザーの存在を確認する
+// ExistsByEmail はメールアドレスでユーザーの存在を確認する（大小文字を区別しない）
 func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	_ = ctx // 将来的なDB実装のために保持
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	_, exists := r.emailIndex[email]
+	_, exists := r.emailIndex[strings.ToLower(email)]
 	return exists, nil
 }
 
@@ -260,10 +261,11 @@ func (r *UserRepository) Count(ctx context.Context) (int, error) {
 // copyUser はユーザーエンティティのディープコピーを作成する
 func (r *UserRepository) copyUser(user *entity.User) *entity.User {
 	return &entity.User{
-		ID:        user.ID,
-		Username:  user.Username,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:           user.ID,
+		Username:     user.Username,
+		Email:        user.Email,
+		PasswordHash: user.PasswordHash,
+		CreatedAt:    user.CreatedAt,
+		UpdatedAt:    user.UpdatedAt,
 	}
 }

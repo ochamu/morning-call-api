@@ -10,24 +10,26 @@ import (
 
 // User はシステムのユーザーを表すエンティティ
 type User struct {
-	ID        string
-	Username  string
-	Email     string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID           string
+	Username     string
+	Email        string
+	PasswordHash string // ハッシュ化されたパスワード
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 // emailRegex はメールアドレスの簡易的な検証用正規表現
 var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 
 // NewUser は新しいユーザーエンティティを作成する
-func NewUser(id, username, email string) (*User, valueobject.NGReason) {
+func NewUser(id, username, email, passwordHash string) (*User, valueobject.NGReason) {
 	user := &User{
-		ID:        id,
-		Username:  username,
-		Email:     email,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:           id,
+		Username:     username,
+		Email:        email,
+		PasswordHash: passwordHash,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
 	}
 
 	// 検証
@@ -97,6 +99,46 @@ func (u *User) ValidateEmail() valueobject.NGReason {
 
 	if len(u.Email) > 255 {
 		return valueobject.NG("メールアドレスは255文字以内である必要があります")
+	}
+
+	return valueobject.OK()
+}
+
+// ValidatePassword はパスワードの妥当性を検証する（平文パスワード用）
+func ValidatePassword(password string) valueobject.NGReason {
+	if password == "" {
+		return valueobject.NG("パスワードは必須です")
+	}
+
+	if len(password) < 8 {
+		return valueobject.NG("パスワードは8文字以上である必要があります")
+	}
+
+	if len(password) > 100 {
+		return valueobject.NG("パスワードは100文字以内である必要があります")
+	}
+
+	// パスワード強度の基本的なチェック
+	hasUpper := false
+	hasLower := false
+	hasDigit := false
+	hasSpecial := false
+
+	for _, r := range password {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			hasUpper = true
+		case r >= 'a' && r <= 'z':
+			hasLower = true
+		case r >= '0' && r <= '9':
+			hasDigit = true
+		case strings.ContainsRune("!@#$%^&*()_+-=[]{}|;':\",./<>?", r):
+			hasSpecial = true
+		}
+	}
+
+	if !hasUpper || !hasLower || !hasDigit || !hasSpecial {
+		return valueobject.NG("パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります")
 	}
 
 	return valueobject.OK()
