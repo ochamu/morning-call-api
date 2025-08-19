@@ -8,81 +8,90 @@ import (
 
 func TestNewUser(t *testing.T) {
 	tests := []struct {
-		name        string
-		id          string
-		username    string
-		email       string
-		expectError bool
-		errorMsg    string
+		name         string
+		id           string
+		username     string
+		email        string
+		passwordHash string
+		expectError  bool
+		errorMsg     string
 	}{
 		{
-			name:        "正常なユーザー作成",
-			id:          "user-001",
-			username:    "testuser",
-			email:       "test@example.com",
-			expectError: false,
+			name:         "正常なユーザー作成",
+			id:           "user-001",
+			username:     "testuser",
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  false,
 		},
 		{
-			name:        "IDが空",
-			id:          "",
-			username:    "testuser",
-			email:       "test@example.com",
-			expectError: true,
-			errorMsg:    "ユーザーIDは必須です",
+			name:         "IDが空",
+			id:           "",
+			username:     "testuser",
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "ユーザーIDは必須です",
 		},
 		{
-			name:        "ユーザー名が空",
-			id:          "user-001",
-			username:    "",
-			email:       "test@example.com",
-			expectError: true,
-			errorMsg:    "ユーザー名は必須です",
+			name:         "ユーザー名が空",
+			id:           "user-001",
+			username:     "",
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "ユーザー名は必須です",
 		},
 		{
-			name:        "メールアドレスが空",
-			id:          "user-001",
-			username:    "testuser",
-			email:       "",
-			expectError: true,
-			errorMsg:    "メールアドレスは必須です",
+			name:         "メールアドレスが空",
+			id:           "user-001",
+			username:     "testuser",
+			email:        "",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "メールアドレスは必須です",
 		},
 		{
-			name:        "ユーザー名が短すぎる",
-			id:          "user-001",
-			username:    "ab",
-			email:       "test@example.com",
-			expectError: true,
-			errorMsg:    "ユーザー名は3文字以上である必要があります",
+			name:         "ユーザー名が短すぎる",
+			id:           "user-001",
+			username:     "ab",
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "ユーザー名は3文字以上である必要があります",
 		},
 		{
-			name:        "ユーザー名が長すぎる",
-			id:          "user-001",
-			username:    strings.Repeat("a", 31),
-			email:       "test@example.com",
-			expectError: true,
-			errorMsg:    "ユーザー名は30文字以内である必要があります",
+			name:         "ユーザー名が長すぎる",
+			id:           "user-001",
+			username:     strings.Repeat("a", 31),
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "ユーザー名は30文字以内である必要があります",
 		},
 		{
-			name:        "ユーザー名に不正な文字",
-			id:          "user-001",
-			username:    "test@user",
-			email:       "test@example.com",
-			expectError: true,
-			errorMsg:    "ユーザー名には英数字、アンダースコア、ハイフンのみ使用できます",
+			name:         "ユーザー名に不正な文字",
+			id:           "user-001",
+			username:     "test@user",
+			email:        "test@example.com",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "ユーザー名には英数字、アンダースコア、ハイフンのみ使用できます",
 		},
 		{
-			name:        "メールアドレスの形式が不正",
-			id:          "user-001",
-			username:    "testuser",
-			email:       "invalid-email",
-			expectError: true,
-			errorMsg:    "メールアドレスの形式が正しくありません",
+			name:         "メールアドレスの形式が不正",
+			id:           "user-001",
+			username:     "testuser",
+			email:        "invalid-email",
+			passwordHash: "hashedpassword",
+			expectError:  true,
+			errorMsg:     "メールアドレスの形式が正しくありません",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, reason := NewUser(tt.id, tt.username, tt.email)
+			user, reason := NewUser(tt.id, tt.username, tt.email, tt.passwordHash)
 
 			if tt.expectError {
 				if reason.IsOK() {
@@ -111,6 +120,9 @@ func TestNewUser(t *testing.T) {
 					expectedEmail := strings.ToLower(tt.email)
 					if user.Email != expectedEmail {
 						t.Errorf("Email: expected %s, got %s", expectedEmail, user.Email)
+					}
+					if user.PasswordHash != tt.passwordHash {
+						t.Errorf("PasswordHash: expected %s, got %s", tt.passwordHash, user.PasswordHash)
 					}
 				}
 			}
@@ -541,6 +553,102 @@ func TestUser_Equals(t *testing.T) {
 			result := tt.user.Equals(tt.other)
 			if result != tt.expected {
 				t.Errorf("Equals() = %v, expected %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestValidatePassword(t *testing.T) {
+	tests := []struct {
+		name        string
+		password    string
+		expectError bool
+		errorMsg    string
+	}{
+		{
+			name:        "有効なパスワード",
+			password:    "Password123!",
+			expectError: false,
+		},
+		{
+			name:        "複雑なパスワード",
+			password:    "C0mpl3x!P@ssw0rd#2024",
+			expectError: false,
+		},
+		{
+			name:        "最小要件を満たすパスワード",
+			password:    "Abcd123!",
+			expectError: false,
+		},
+		{
+			name:        "空のパスワード",
+			password:    "",
+			expectError: true,
+			errorMsg:    "パスワードは必須です",
+		},
+		{
+			name:        "短すぎるパスワード",
+			password:    "Pass1!",
+			expectError: true,
+			errorMsg:    "パスワードは8文字以上である必要があります",
+		},
+		{
+			name:        "長すぎるパスワード",
+			password:    strings.Repeat("a", 95) + "A1!",
+			expectError: false, // 100文字はOK
+		},
+		{
+			name:        "100文字を超えるパスワード",
+			password:    strings.Repeat("a", 98) + "A1!",
+			expectError: true,
+			errorMsg:    "パスワードは100文字以内である必要があります",
+		},
+		{
+			name:        "大文字がない",
+			password:    "password123!",
+			expectError: true,
+			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
+		},
+		{
+			name:        "小文字がない",
+			password:    "PASSWORD123!",
+			expectError: true,
+			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
+		},
+		{
+			name:        "数字がない",
+			password:    "Password!",
+			expectError: true,
+			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
+		},
+		{
+			name:        "特殊文字がない",
+			password:    "Password123",
+			expectError: true,
+			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
+		},
+		{
+			name:        "様々な特殊文字を含む",
+			password:    "Pass123@#$%",
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reason := ValidatePassword(tt.password)
+
+			if tt.expectError {
+				if reason.IsOK() {
+					t.Errorf("エラーが期待されたが、成功した")
+				}
+				if reason.Error() != tt.errorMsg {
+					t.Errorf("期待されたエラーメッセージ: %s, 実際: %s", tt.errorMsg, reason.Error())
+				}
+			} else {
+				if reason.IsNG() {
+					t.Errorf("成功が期待されたが、エラーが発生: %s", reason.Error())
+				}
 			}
 		})
 	}
