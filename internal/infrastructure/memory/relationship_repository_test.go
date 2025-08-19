@@ -828,7 +828,7 @@ func TestRelationshipRepository_ConcurrentAccess(t *testing.T) {
 			rel, err := repo.FindByID(ctx, relID)
 			if err != nil {
 				t.Errorf("並行FindByID失敗: %v", err)
-				done <- false
+				done <- true
 				return
 			}
 
