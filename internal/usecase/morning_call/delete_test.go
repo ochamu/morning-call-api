@@ -14,18 +14,14 @@ import (
 
 func TestNewDeleteUseCase(t *testing.T) {
 	morningCallRepo := memory.NewMorningCallRepository()
-	userRepo := memory.NewUserRepository()
 
-	uc := NewDeleteUseCase(morningCallRepo, userRepo)
+	uc := NewDeleteUseCase(morningCallRepo)
 
 	if uc == nil {
 		t.Fatal("NewDeleteUseCase returned nil")
 	}
 	if uc.morningCallRepo == nil {
 		t.Error("morningCallRepo is nil")
-	}
-	if uc.userRepo == nil {
-		t.Error("userRepo is nil")
 	}
 }
 
@@ -245,8 +241,8 @@ func TestDeleteUseCase_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			uc := NewDeleteUseCase(morningCallRepo, userRepo)
-			err := uc.Execute(ctx, tt.input)
+			uc := NewDeleteUseCase(morningCallRepo)
+			output, err := uc.Execute(ctx, tt.input)
 
 			if tt.wantErr {
 				if err == nil {
@@ -254,9 +250,19 @@ func TestDeleteUseCase_Execute(t *testing.T) {
 				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("error message = %v, want contains %v", err.Error(), tt.errMsg)
 				}
+				if output != nil {
+					t.Error("expected output to be nil on error")
+				}
 			} else {
 				if err != nil {
 					t.Errorf("unexpected error: %v", err)
+				}
+				if output == nil {
+					t.Error("expected output but got nil")
+				} else if output.DeletedMorningCall == nil {
+					t.Error("expected DeletedMorningCall but got nil")
+				} else if output.DeletedMorningCall.ID != tt.input.ID {
+					t.Errorf("DeletedMorningCall.ID = %v, want %v", output.DeletedMorningCall.ID, tt.input.ID)
 				}
 
 				// 削除されたことを確認
@@ -330,15 +336,18 @@ func TestDeleteUseCase_Execute_Authorization(t *testing.T) {
 		t.Fatalf("failed to create morning call: %v", err)
 	}
 
-	uc := NewDeleteUseCase(morningCallRepo, userRepo)
+	uc := NewDeleteUseCase(morningCallRepo)
 
 	// 送信者（user1）による削除は成功すべき
-	err := uc.Execute(ctx, DeleteInput{
+	output, err := uc.Execute(ctx, DeleteInput{
 		ID:       morningCall.ID,
 		SenderID: user1.ID,
 	})
 	if err != nil {
 		t.Errorf("sender should be able to delete: %v", err)
+	}
+	if output == nil || output.DeletedMorningCall == nil {
+		t.Error("expected deleted morning call info but got nil")
 	}
 
 	// 削除されたことを確認
@@ -363,7 +372,7 @@ func TestDeleteUseCase_Execute_Authorization(t *testing.T) {
 	}
 
 	// 受信者（user2）による削除は失敗すべき
-	err = uc.Execute(ctx, DeleteInput{
+	output2, err := uc.Execute(ctx, DeleteInput{
 		ID:       morningCall2.ID,
 		SenderID: user2.ID,
 	})
@@ -372,9 +381,12 @@ func TestDeleteUseCase_Execute_Authorization(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "送信者のみがモーニングコールを削除できます") {
 		t.Errorf("unexpected error message: %v", err.Error())
 	}
+	if output2 != nil {
+		t.Error("expected output to be nil on error")
+	}
 
 	// 無関係なユーザー（user3）による削除も失敗すべき
-	err = uc.Execute(ctx, DeleteInput{
+	output3, err := uc.Execute(ctx, DeleteInput{
 		ID:       morningCall2.ID,
 		SenderID: user3.ID,
 	})
@@ -382,6 +394,9 @@ func TestDeleteUseCase_Execute_Authorization(t *testing.T) {
 		t.Error("unrelated user should not be able to delete")
 	} else if !strings.Contains(err.Error(), "送信者のみがモーニングコールを削除できます") {
 		t.Errorf("unexpected error message: %v", err.Error())
+	}
+	if output3 != nil {
+		t.Error("expected output to be nil on error")
 	}
 }
 
@@ -431,7 +446,7 @@ func TestDeleteUseCase_Execute_StatusTransitions(t *testing.T) {
 		{valueobject.MorningCallStatusExpired, false, "期限切れ"},
 	}
 
-	uc := NewDeleteUseCase(morningCallRepo, userRepo)
+	uc := NewDeleteUseCase(morningCallRepo)
 
 	for i, s := range statuses {
 		t.Run(s.description, func(t *testing.T) {
@@ -451,7 +466,7 @@ func TestDeleteUseCase_Execute_StatusTransitions(t *testing.T) {
 			}
 
 			// 削除を試みる
-			err := uc.Execute(ctx, DeleteInput{
+			output, err := uc.Execute(ctx, DeleteInput{
 				ID:       mc.ID,
 				SenderID: user1.ID,
 			})
@@ -459,6 +474,11 @@ func TestDeleteUseCase_Execute_StatusTransitions(t *testing.T) {
 			if s.canDelete {
 				if err != nil {
 					t.Errorf("should be able to delete %s morning call: %v", s.description, err)
+				}
+				if output == nil || output.DeletedMorningCall == nil {
+					t.Error("expected deleted morning call info but got nil")
+				} else if output.DeletedMorningCall.ID != mc.ID {
+					t.Errorf("DeletedMorningCall.ID = %v, want %v", output.DeletedMorningCall.ID, mc.ID)
 				}
 				// 削除されたことを確認
 				_, err := morningCallRepo.FindByID(ctx, mc.ID)
@@ -470,6 +490,9 @@ func TestDeleteUseCase_Execute_StatusTransitions(t *testing.T) {
 					t.Errorf("should not be able to delete %s morning call", s.description)
 				} else if !strings.Contains(err.Error(), "削除できるのはスケジュール済みまたはキャンセル済みのモーニングコールのみです") {
 					t.Errorf("unexpected error message for %s: %v", s.description, err.Error())
+				}
+				if output != nil {
+					t.Error("expected output to be nil on error")
 				}
 				// 削除されていないことを確認
 				_, err := morningCallRepo.FindByID(ctx, mc.ID)
@@ -531,16 +554,19 @@ func TestDeleteUseCase_Execute_MultipleDeletes(t *testing.T) {
 		}
 	}
 
-	uc := NewDeleteUseCase(morningCallRepo, userRepo)
+	uc := NewDeleteUseCase(morningCallRepo)
 
 	// すべてのモーニングコールを順番に削除
 	for i := 0; i < 5; i++ {
-		err := uc.Execute(ctx, DeleteInput{
+		output, err := uc.Execute(ctx, DeleteInput{
 			ID:       fmt.Sprintf("mc%d", i),
 			SenderID: user1.ID,
 		})
 		if err != nil {
 			t.Errorf("failed to delete morning call %d: %v", i, err)
+		}
+		if output == nil || output.DeletedMorningCall == nil {
+			t.Errorf("expected deleted morning call info for %d but got nil", i)
 		}
 	}
 
@@ -553,7 +579,7 @@ func TestDeleteUseCase_Execute_MultipleDeletes(t *testing.T) {
 	}
 
 	// 削除済みのモーニングコールを再度削除しようとする
-	err := uc.Execute(ctx, DeleteInput{
+	output, err := uc.Execute(ctx, DeleteInput{
 		ID:       "mc0",
 		SenderID: user1.ID,
 	})
@@ -561,5 +587,8 @@ func TestDeleteUseCase_Execute_MultipleDeletes(t *testing.T) {
 		t.Error("should not be able to delete already deleted morning call")
 	} else if !strings.Contains(err.Error(), "モーニングコールが見つかりません") {
 		t.Errorf("unexpected error message: %v", err.Error())
+	}
+	if output != nil {
+		t.Error("expected output to be nil on error")
 	}
 }
