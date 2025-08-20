@@ -526,4 +526,3 @@ func TestListFriendRequestsUseCase_Execute(t *testing.T) {
 		})
 	}
 }
-

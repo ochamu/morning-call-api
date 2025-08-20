@@ -150,4 +150,3 @@ func (uc *ListFriendRequestsUseCase) Execute(ctx context.Context, input ListFrie
 		TotalCount: len(requests),
 	}, nil
 }
-
