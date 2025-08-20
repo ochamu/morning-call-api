@@ -684,8 +684,7 @@ func TestListUseCase_Execute_TimeRangeFilter(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("expected error for invalid time range but got nil")
-	}
-	if !strings.Contains(err.Error(), "開始時刻は終了時刻より前である必要があります") {
+	} else if !strings.Contains(err.Error(), "開始時刻は終了時刻より前である必要があります") {
 		t.Errorf("unexpected error message: %v", err.Error())
 	}
 }
