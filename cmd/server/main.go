@@ -1,0 +1,177 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+
+	"github.com/ochamu/morning-call-api/internal/config"
+	"github.com/ochamu/morning-call-api/internal/domain/repository"
+	"github.com/ochamu/morning-call-api/internal/infrastructure/auth"
+	"github.com/ochamu/morning-call-api/internal/infrastructure/memory"
+	"github.com/ochamu/morning-call-api/internal/infrastructure/server"
+	authUC "github.com/ochamu/morning-call-api/internal/usecase/auth"
+	relationshipUC "github.com/ochamu/morning-call-api/internal/usecase/relationship"
+	userUC "github.com/ochamu/morning-call-api/internal/usecase/user"
+)
+
+func main() {
+	// 設定の読み込み
+	cfg := config.Load()
+	if err := cfg.Validate(); err != nil {
+		log.Fatalf("設定の検証に失敗しました: %v", err)
+	}
+
+	// ログの初期化
+	log.Printf("Morning Call API サーバーを起動します (ポート: %s)", cfg.Server.Port)
+
+	// リポジトリの初期化（インメモリ実装）
+	userRepo := memory.NewUserRepository()
+	morningCallRepo := memory.NewMorningCallRepository() // TODO: モーニングコールユースケース実装時に使用
+	relationshipRepo := memory.NewRelationshipRepository()
+	transactionManager := memory.NewTransactionManager()
+
+	// リポジトリファクトリーの作成
+	factory := &repositoryFactory{
+		userRepo:           userRepo,
+		morningCallRepo:    morningCallRepo,
+		relationshipRepo:   relationshipRepo,
+		transactionManager: transactionManager,
+	}
+
+	// パスワードサービスの初期化
+	passwordService := auth.NewPasswordService()
+
+	// ユースケースの初期化
+	authUseCase := authUC.NewAuthUseCase(userRepo, passwordService)
+	userUseCase := userUC.NewUserUseCase(userRepo, passwordService)
+
+	// TODO: モーニングコールユースケースの初期化（未実装のため一時的にコメントアウト）
+	// createMorningCallUC := morningCallUC.NewCreateMorningCallUseCase(morningCallRepo, userRepo, relationshipRepo)
+	// updateMorningCallUC := morningCallUC.NewUpdateMorningCallUseCase(morningCallRepo, userRepo)
+	// deleteMorningCallUC := morningCallUC.NewDeleteMorningCallUseCase(morningCallRepo, userRepo)
+	// listMorningCallUC := morningCallUC.NewListMorningCallsUseCase(morningCallRepo, userRepo)
+	// confirmWakeUC := morningCallUC.NewConfirmWakeUseCase(morningCallRepo, userRepo)
+
+	// 関係性ユースケースの初期化
+	sendFriendRequestUC := relationshipUC.NewSendFriendRequestUseCase(relationshipRepo, userRepo)
+	acceptFriendRequestUC := relationshipUC.NewAcceptFriendRequestUseCase(relationshipRepo, userRepo)
+	rejectFriendRequestUC := relationshipUC.NewRejectFriendRequestUseCase(relationshipRepo, userRepo)
+	blockUserUC := relationshipUC.NewBlockUserUseCase(relationshipRepo, userRepo)
+	removeRelationshipUC := relationshipUC.NewRemoveRelationshipUseCase(relationshipRepo, userRepo)
+	listFriendsUC := relationshipUC.NewListFriendsUseCase(relationshipRepo, userRepo)
+	listFriendRequestsUC := relationshipUC.NewListFriendRequestsUseCase(relationshipRepo, userRepo)
+
+	// 依存性コンテナの作成
+	deps := &Dependencies{
+		Config:            cfg,
+		RepositoryFactory: factory,
+		PasswordService:   passwordService,
+		UseCases: UseCases{
+			Auth: authUseCase,
+			User: userUseCase,
+			// TODO: モーニングコールユースケース（未実装）
+			// CreateMorningCall:   createMorningCallUC,
+			// UpdateMorningCall:   updateMorningCallUC,
+			// DeleteMorningCall:   deleteMorningCallUC,
+			// ListMorningCalls:    listMorningCallUC,
+			// ConfirmWake:         confirmWakeUC,
+			SendFriendRequest:   sendFriendRequestUC,
+			AcceptFriendRequest: acceptFriendRequestUC,
+			RejectFriendRequest: rejectFriendRequestUC,
+			BlockUser:           blockUserUC,
+			RemoveRelationship:  removeRelationshipUC,
+			ListFriends:         listFriendsUC,
+			ListFriendRequests:  listFriendRequestsUC,
+		},
+	}
+
+	// HTTPサーバーの作成
+	srv := server.NewHTTPServer(cfg, deps)
+
+	// シグナルハンドリングの設定
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// サーバーの起動（ゴルーチン）
+	go func() {
+		addr := fmt.Sprintf(":%s", cfg.Server.Port)
+		log.Printf("HTTPサーバーを起動しました: http://localhost%s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("サーバーの起動に失敗しました: %v", err)
+		}
+	}()
+
+	// シグナル待機
+	sig := <-sigChan
+	log.Printf("シグナルを受信しました: %v", sig)
+
+	// グレースフルシャットダウン
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.Server.ShutdownTimeout)
+	defer cancel()
+
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Printf("サーバーのシャットダウンに失敗しました: %v", err)
+	}
+
+	log.Println("サーバーを正常に停止しました")
+}
+
+// Dependencies はアプリケーションの依存性を保持します
+type Dependencies struct {
+	Config            *config.Config
+	RepositoryFactory repository.RepositoryFactory
+	PasswordService   *auth.PasswordService
+	UseCases          UseCases
+}
+
+// UseCases はすべてのユースケースを保持します
+type UseCases struct {
+	Auth *authUC.AuthUseCase
+	User *userUC.UserUseCase
+	// TODO: モーニングコールユースケース（未実装）
+	// CreateMorningCall   *morningCallUC.CreateMorningCallUseCase
+	// UpdateMorningCall   *morningCallUC.UpdateMorningCallUseCase
+	// DeleteMorningCall   *morningCallUC.DeleteMorningCallUseCase
+	// ListMorningCalls    *morningCallUC.ListMorningCallsUseCase
+	// ConfirmWake         *morningCallUC.ConfirmWakeUseCase
+	SendFriendRequest   *relationshipUC.SendFriendRequestUseCase
+	AcceptFriendRequest *relationshipUC.AcceptFriendRequestUseCase
+	RejectFriendRequest *relationshipUC.RejectFriendRequestUseCase
+	BlockUser           *relationshipUC.BlockUserUseCase
+	RemoveRelationship  *relationshipUC.RemoveRelationshipUseCase
+	ListFriends         *relationshipUC.ListFriendsUseCase
+	ListFriendRequests  *relationshipUC.ListFriendRequestsUseCase
+}
+
+// repositoryFactory はリポジトリファクトリーの実装です
+type repositoryFactory struct {
+	userRepo           repository.UserRepository
+	morningCallRepo    repository.MorningCallRepository
+	relationshipRepo   repository.RelationshipRepository
+	transactionManager repository.TransactionManager
+}
+
+// UserRepository はユーザーリポジトリを返します
+func (f *repositoryFactory) UserRepository() repository.UserRepository {
+	return f.userRepo
+}
+
+// MorningCallRepository はモーニングコールリポジトリを返します
+func (f *repositoryFactory) MorningCallRepository() repository.MorningCallRepository {
+	return f.morningCallRepo
+}
+
+// RelationshipRepository は関係性リポジトリを返します
+func (f *repositoryFactory) RelationshipRepository() repository.RelationshipRepository {
+	return f.relationshipRepo
+}
+
+// TransactionManager はトランザクションマネージャーを返します
+func (f *repositoryFactory) TransactionManager() repository.TransactionManager {
+	return f.transactionManager
+}

@@ -8,6 +8,9 @@
 *.so
 *.dylib
 
+# Project-specific binaries
+morning-call-api
+
 # Test binary, built with `go test -c`
 *.test
 
