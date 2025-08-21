@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -87,7 +88,10 @@ func (sm *SessionManager) GetSession(sessionID string) (*Session, error) {
 	// 有効期限の確認
 	if time.Now().After(session.ExpiresAt) {
 		// 期限切れセッションを削除
-		sm.DeleteSession(sessionID)
+		if err := sm.DeleteSession(sessionID); err != nil {
+			// 削除エラーはログに記録し、処理は続行
+			log.Printf("期限切れセッションの削除に失敗しました: %v", err)
+		}
 		return nil, fmt.Errorf("セッションの有効期限が切れています")
 	}
 
@@ -166,7 +170,10 @@ func (sm *SessionManager) ValidateSession(sessionID string) (bool, error) {
 
 	// 有効期限のチェック
 	if time.Now().After(session.ExpiresAt) {
-		sm.DeleteSession(sessionID)
+		if err := sm.DeleteSession(sessionID); err != nil {
+			// 削除エラーはログに記録し、処理は続行
+			log.Printf("期限切れセッションの削除に失敗しました: %v", err)
+		}
 		return false, nil
 	}
 

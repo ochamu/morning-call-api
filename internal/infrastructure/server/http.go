@@ -147,12 +147,14 @@ func (s *HTTPServer) recoveryMiddleware(next http.Handler) http.Handler {
 				// エラーレスポンスを返す
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"error": map[string]string{
 						"code":    "INTERNAL_ERROR",
 						"message": "内部エラーが発生しました",
 					},
-				})
+				}); err != nil {
+					log.Printf("パニックリカバリー時のエラーレスポンス送信に失敗しました: %v", err)
+				}
 			}
 		}()
 
