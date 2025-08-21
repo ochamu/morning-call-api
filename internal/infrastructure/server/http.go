@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"runtime/debug"
 	"time"
 
 	"github.com/ochamu/morning-call-api/internal/config"
+	"github.com/ochamu/morning-call-api/internal/handler"
+	"github.com/ochamu/morning-call-api/internal/handler/middleware"
 )
 
 // HTTPServer はHTTPサーバーの構造体です
@@ -54,21 +57,49 @@ func (s *HTTPServer) setupRoutes() {
 	// APIバージョン情報
 	s.router.HandleFunc("/api/v1", s.handleAPIInfo)
 
-	// TODO: 各リソースのハンドラーを追加
-	// Authentication
-	// s.router.HandleFunc("/api/v1/auth/login", s.handleLogin)
-	// s.router.HandleFunc("/api/v1/auth/logout", s.handleLogout)
+	// 依存性を取得（リフレクションを使用してアクセス）
+	// main.goのDependencies構造体を参照
+	if s.deps == nil {
+		log.Println("警告: 依存性が設定されていません")
+		return
+	}
 
-	// Users
-	// s.router.HandleFunc("/api/v1/users/register", s.handleUserRegister)
-	// s.router.HandleFunc("/api/v1/users/me", s.handleGetCurrentUser)
+	// リフレクションを使用してハンドラーを取得
+	authHandler := s.getAuthHandler()
+	userHandler := s.getUserHandler()
+	authMiddleware := s.getAuthMiddleware()
 
+	if authHandler == nil || userHandler == nil {
+		log.Println("警告: ハンドラーが設定されていません")
+		return
+	}
+
+	// 認証エンドポイント（認証不要）
+	s.router.HandleFunc("/api/v1/auth/login", authHandler.HandleLogin)
+	s.router.HandleFunc("/api/v1/auth/validate", authHandler.HandleValidateSession)
+	s.router.HandleFunc("/api/v1/users/register", userHandler.HandleRegister)
+
+	// 認証が必要なエンドポイント
+	if authMiddleware != nil {
+		// 認証エンドポイント
+		s.router.HandleFunc("/api/v1/auth/logout", authMiddleware.Authenticate(authHandler.HandleLogout))
+		s.router.HandleFunc("/api/v1/auth/me", authMiddleware.Authenticate(authHandler.HandleGetCurrentUser))
+		s.router.HandleFunc("/api/v1/auth/refresh", authMiddleware.Authenticate(authHandler.HandleRefreshSession))
+
+		// ユーザーエンドポイント
+		s.router.HandleFunc("/api/v1/users/profile", authMiddleware.Authenticate(userHandler.HandleGetProfile))
+		s.router.HandleFunc("/api/v1/users/search", authMiddleware.Authenticate(userHandler.HandleSearchUsers))
+		// ユーザーIDによる取得（パスパラメータ対応）
+		s.router.HandleFunc("/api/v1/users/", authMiddleware.Authenticate(userHandler.HandleGetUserByID))
+	}
+
+	// TODO: 他のリソースのハンドラーを追加
 	// Relationships
-	// s.router.HandleFunc("/api/v1/relationships/request", s.handleSendFriendRequest)
-	// s.router.HandleFunc("/api/v1/relationships/friends", s.handleListFriends)
+	// s.router.HandleFunc("/api/v1/relationships/request", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleSendFriendRequest))
+	// s.router.HandleFunc("/api/v1/relationships/friends", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleListFriends))
 
 	// Morning Calls
-	// s.router.HandleFunc("/api/v1/morning-calls", s.handleMorningCalls)
+	// s.router.HandleFunc("/api/v1/morning-calls", deps.AuthMiddleware.Authenticate(morningCallHandler.HandleMorningCalls))
 }
 
 // applyMiddleware はミドルウェアを適用します
@@ -258,3 +289,49 @@ type ValidationError struct {
 // 	}
 // 	sendJSONResponse(w, status, response)
 // }
+
+// getAuthHandler は依存性からAuthハンドラーを取得する
+func (s *HTTPServer) getAuthHandler() *handler.AuthHandler {
+	// リフレクションを使用してHandlersフィールドにアクセス
+	v := reflect.ValueOf(s.deps).Elem()
+	handlersField := v.FieldByName("Handlers")
+	if handlersField.IsValid() {
+		authField := handlersField.FieldByName("Auth")
+		if authField.IsValid() && !authField.IsNil() {
+			if authHandler, ok := authField.Interface().(*handler.AuthHandler); ok {
+				return authHandler
+			}
+		}
+	}
+
+	return nil
+}
+
+// getUserHandler は依存性からUserハンドラーを取得する
+func (s *HTTPServer) getUserHandler() *handler.UserHandler {
+	v := reflect.ValueOf(s.deps).Elem()
+	handlersField := v.FieldByName("Handlers")
+	if handlersField.IsValid() {
+		userField := handlersField.FieldByName("User")
+		if userField.IsValid() && !userField.IsNil() {
+			if userHandler, ok := userField.Interface().(*handler.UserHandler); ok {
+				return userHandler
+			}
+		}
+	}
+
+	return nil
+}
+
+// getAuthMiddleware は依存性から認証ミドルウェアを取得する
+func (s *HTTPServer) getAuthMiddleware() *middleware.AuthMiddleware {
+	v := reflect.ValueOf(s.deps).Elem()
+	authMiddlewareField := v.FieldByName("AuthMiddleware")
+	if authMiddlewareField.IsValid() && !authMiddlewareField.IsNil() {
+		if authMiddleware, ok := authMiddlewareField.Interface().(*middleware.AuthMiddleware); ok {
+			return authMiddleware
+		}
+	}
+
+	return nil
+}

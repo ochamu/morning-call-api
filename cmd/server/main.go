@@ -8,9 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ochamu/morning-call-api/internal/config"
 	"github.com/ochamu/morning-call-api/internal/domain/repository"
+	"github.com/ochamu/morning-call-api/internal/handler"
+	"github.com/ochamu/morning-call-api/internal/handler/middleware"
 	"github.com/ochamu/morning-call-api/internal/infrastructure/auth"
 	"github.com/ochamu/morning-call-api/internal/infrastructure/memory"
 	"github.com/ochamu/morning-call-api/internal/infrastructure/server"
@@ -46,6 +49,9 @@ func main() {
 	// パスワードサービスの初期化
 	passwordService := auth.NewPasswordService()
 
+	// セッションマネージャーの初期化
+	sessionManager := auth.NewSessionManager(24 * time.Hour) // 24時間のセッションタイムアウト
+
 	// ユースケースの初期化
 	authUseCase := authUC.NewAuthUseCase(userRepo, passwordService)
 	userUseCase := userUC.NewUserUseCase(userRepo, passwordService)
@@ -66,11 +72,24 @@ func main() {
 	listFriendsUC := relationshipUC.NewListFriendsUseCase(relationshipRepo, userRepo)
 	listFriendRequestsUC := relationshipUC.NewListFriendRequestsUseCase(relationshipRepo, userRepo)
 
+	// ハンドラーの初期化
+	authHandler := handler.NewAuthHandler(authUseCase, sessionManager)
+	userHandler := handler.NewUserHandler(userUseCase, sessionManager)
+
+	// 認証ミドルウェアの初期化
+	authMiddleware := middleware.NewAuthMiddleware(sessionManager, userRepo)
+
 	// 依存性コンテナの作成
 	deps := &Dependencies{
 		Config:            cfg,
 		RepositoryFactory: factory,
 		PasswordService:   passwordService,
+		SessionManager:    sessionManager,
+		Handlers: Handlers{
+			Auth: authHandler,
+			User: userHandler,
+		},
+		AuthMiddleware: authMiddleware,
 		UseCases: UseCases{
 			Auth: authUseCase,
 			User: userUseCase,
@@ -126,7 +145,17 @@ type Dependencies struct {
 	Config            *config.Config
 	RepositoryFactory repository.RepositoryFactory
 	PasswordService   *auth.PasswordService
+	SessionManager    *auth.SessionManager
+	Handlers          Handlers
+	AuthMiddleware    *middleware.AuthMiddleware
 	UseCases          UseCases
+}
+
+// Handlers はすべてのハンドラーを保持します
+type Handlers struct {
+	Auth *handler.AuthHandler
+	User *handler.UserHandler
+	// TODO: 他のハンドラーを追加
 }
 
 // UseCases はすべてのユースケースを保持します
