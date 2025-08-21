@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/ochamu/morning-call-api/internal/domain/repository"
 	"github.com/ochamu/morning-call-api/internal/handler"
@@ -156,7 +157,7 @@ func (m *AuthMiddleware) ExtendSession(next http.HandlerFunc) http.HandlerFunc {
 		sessionID, _ := m.baseHandler.GetSessionIDFromContext(r.Context())
 		if sessionID != "" {
 			// セッションの有効期限を延長（エラーは無視）
-			_ = m.sessionManager.ExtendSession(sessionID, 24*60*60) // 24時間延長
+			_ = m.sessionManager.ExtendSession(sessionID, 24*time.Hour) // 24時間延長
 		}
 
 		// 次のハンドラーを実行
