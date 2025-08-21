@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/ochamu/morning-call-api/internal/infrastructure/memory"
 	"github.com/ochamu/morning-call-api/internal/infrastructure/server"
 	authUC "github.com/ochamu/morning-call-api/internal/usecase/auth"
+	morningCallUC "github.com/ochamu/morning-call-api/internal/usecase/morning_call"
 	relationshipUC "github.com/ochamu/morning-call-api/internal/usecase/relationship"
 	userUC "github.com/ochamu/morning-call-api/internal/usecase/user"
 )
@@ -34,7 +36,7 @@ func main() {
 
 	// リポジトリの初期化（インメモリ実装）
 	userRepo := memory.NewUserRepository()
-	morningCallRepo := memory.NewMorningCallRepository() // TODO: モーニングコールユースケース実装時に使用
+	morningCallRepo := memory.NewMorningCallRepository()
 	relationshipRepo := memory.NewRelationshipRepository()
 	transactionManager := memory.NewTransactionManager()
 
@@ -56,12 +58,12 @@ func main() {
 	authUseCase := authUC.NewAuthUseCase(userRepo, passwordService)
 	userUseCase := userUC.NewUserUseCase(userRepo, passwordService)
 
-	// TODO: モーニングコールユースケースの初期化（未実装のため一時的にコメントアウト）
-	// createMorningCallUC := morningCallUC.NewCreateMorningCallUseCase(morningCallRepo, userRepo, relationshipRepo)
-	// updateMorningCallUC := morningCallUC.NewUpdateMorningCallUseCase(morningCallRepo, userRepo)
-	// deleteMorningCallUC := morningCallUC.NewDeleteMorningCallUseCase(morningCallRepo, userRepo)
-	// listMorningCallUC := morningCallUC.NewListMorningCallsUseCase(morningCallRepo, userRepo)
-	// confirmWakeUC := morningCallUC.NewConfirmWakeUseCase(morningCallRepo, userRepo)
+	// モーニングコールユースケースの初期化
+	createMorningCallUC := morningCallUC.NewCreateUseCase(morningCallRepo, userRepo, relationshipRepo)
+	updateMorningCallUC := morningCallUC.NewUpdateUseCase(morningCallRepo, userRepo)
+	deleteMorningCallUC := morningCallUC.NewDeleteUseCase(morningCallRepo) // DeleteUseCaseは引数が1つのみ
+	listMorningCallUC := morningCallUC.NewListUseCase(morningCallRepo, userRepo)
+	confirmWakeUC := morningCallUC.NewConfirmWakeUseCase(morningCallRepo, userRepo)
 
 	// 関係性ユースケースの初期化
 	sendFriendRequestUC := relationshipUC.NewSendFriendRequestUseCase(relationshipRepo, userRepo)
@@ -75,6 +77,25 @@ func main() {
 	// ハンドラーの初期化
 	authHandler := handler.NewAuthHandler(authUseCase, sessionManager)
 	userHandler := handler.NewUserHandler(userUseCase, sessionManager)
+	morningCallHandler := handler.NewMorningCallHandler(
+		createMorningCallUC,
+		updateMorningCallUC,
+		deleteMorningCallUC,
+		listMorningCallUC,
+		confirmWakeUC,
+		sessionManager,
+	)
+	relationshipHandler := handler.NewRelationshipHandler(
+		sendFriendRequestUC,
+		acceptFriendRequestUC,
+		rejectFriendRequestUC,
+		blockUserUC,
+		removeRelationshipUC,
+		listFriendsUC,
+		listFriendRequestsUC,
+		userUseCase,
+		sessionManager,
+	)
 
 	// 認証ミドルウェアの初期化
 	authMiddleware := middleware.NewAuthMiddleware(sessionManager, userRepo)
@@ -86,19 +107,20 @@ func main() {
 		PasswordService:   passwordService,
 		SessionManager:    sessionManager,
 		Handlers: server.Handlers{
-			Auth: authHandler,
-			User: userHandler,
+			Auth:         authHandler,
+			User:         userHandler,
+			MorningCall:  morningCallHandler,
+			Relationship: relationshipHandler,
 		},
 		AuthMiddleware: authMiddleware,
 		UseCases: server.UseCases{
-			Auth: authUseCase,
-			User: userUseCase,
-			// TODO: モーニングコールユースケース（未実装）
-			// CreateMorningCall:   createMorningCallUC,
-			// UpdateMorningCall:   updateMorningCallUC,
-			// DeleteMorningCall:   deleteMorningCallUC,
-			// ListMorningCalls:    listMorningCallUC,
-			// ConfirmWake:         confirmWakeUC,
+			Auth:                authUseCase,
+			User:                userUseCase,
+			CreateMorningCall:   createMorningCallUC,
+			UpdateMorningCall:   updateMorningCallUC,
+			DeleteMorningCall:   deleteMorningCallUC,
+			ListMorningCalls:    listMorningCallUC,
+			ConfirmWake:         confirmWakeUC,
 			SendFriendRequest:   sendFriendRequestUC,
 			AcceptFriendRequest: acceptFriendRequestUC,
 			RejectFriendRequest: rejectFriendRequestUC,
@@ -120,7 +142,7 @@ func main() {
 	go func() {
 		addr := fmt.Sprintf(":%s", cfg.Server.Port)
 		log.Printf("HTTPサーバーを起動しました: http://localhost%s", addr)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("サーバーの起動に失敗しました: %v", err)
 		}
 	}()

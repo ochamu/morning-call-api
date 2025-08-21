@@ -7,7 +7,7 @@ import (
 	"github.com/ochamu/morning-call-api/internal/handler/middleware"
 	"github.com/ochamu/morning-call-api/internal/infrastructure/auth"
 	authUC "github.com/ochamu/morning-call-api/internal/usecase/auth"
-	// morningCallUC "github.com/ochamu/morning-call-api/internal/usecase/morning_call" // TODO: ユースケース実装後に有効化
+	morningCallUC "github.com/ochamu/morning-call-api/internal/usecase/morning_call"
 	relationshipUC "github.com/ochamu/morning-call-api/internal/usecase/relationship"
 	userUC "github.com/ochamu/morning-call-api/internal/usecase/user"
 )
@@ -25,23 +25,21 @@ type Dependencies struct {
 
 // Handlers はHTTPハンドラーをまとめた構造体
 type Handlers struct {
-	Auth *handler.AuthHandler
-	User *handler.UserHandler
-	// TODO: 他のハンドラーを追加
-	// Relationship *handler.RelationshipHandler // TODO: 実装予定
-	// MorningCall  *handler.MorningCallHandler  // TODO: 実装予定
+	Auth         *handler.AuthHandler
+	User         *handler.UserHandler
+	Relationship *handler.RelationshipHandler
+	MorningCall  *handler.MorningCallHandler
 }
 
 // UseCases はユースケースをまとめた構造体
 type UseCases struct {
-	Auth *authUC.AuthUseCase
-	User *userUC.UserUseCase
-	// TODO: モーニングコールユースケース（未実装）
-	// CreateMorningCall   *morningCallUC.CreateMorningCallUseCase
-	// UpdateMorningCall   *morningCallUC.UpdateMorningCallUseCase
-	// DeleteMorningCall   *morningCallUC.DeleteMorningCallUseCase
-	// ListMorningCalls    *morningCallUC.ListMorningCallsUseCase
-	// ConfirmWake         *morningCallUC.ConfirmWakeUseCase
+	Auth                *authUC.AuthUseCase
+	User                *userUC.UserUseCase
+	CreateMorningCall   *morningCallUC.CreateUseCase
+	UpdateMorningCall   *morningCallUC.UpdateUseCase
+	DeleteMorningCall   *morningCallUC.DeleteUseCase
+	ListMorningCalls    *morningCallUC.ListUseCase
+	ConfirmWake         *morningCallUC.ConfirmWakeUseCase
 	SendFriendRequest   *relationshipUC.SendFriendRequestUseCase
 	AcceptFriendRequest *relationshipUC.AcceptFriendRequestUseCase
 	RejectFriendRequest *relationshipUC.RejectFriendRequestUseCase
