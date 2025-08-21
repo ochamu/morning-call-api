@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/ochamu/morning-call-api/internal/config"
@@ -65,10 +66,12 @@ func (s *HTTPServer) setupRoutes() {
 	// ハンドラーを取得
 	authHandler := s.getAuthHandler()
 	userHandler := s.getUserHandler()
+	morningCallHandler := s.getMorningCallHandler()
+	relationshipHandler := s.getRelationshipHandler()
 	authMiddleware := s.getAuthMiddleware()
 
 	if authHandler == nil || userHandler == nil {
-		log.Println("警告: ハンドラーが設定されていません")
+		log.Println("警告: 必須ハンドラーが設定されていません")
 		return
 	}
 
@@ -91,13 +94,61 @@ func (s *HTTPServer) setupRoutes() {
 		s.router.HandleFunc("/api/v1/users/", authMiddleware.Authenticate(userHandler.HandleGetUserByID))
 	}
 
-	// TODO: 他のリソースのハンドラーを追加
-	// Relationships
-	// s.router.HandleFunc("/api/v1/relationships/request", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleSendFriendRequest))
-	// s.router.HandleFunc("/api/v1/relationships/friends", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleListFriends))
+	// Relationshipsエンドポイント
+	if relationshipHandler != nil && authMiddleware != nil {
+		s.router.HandleFunc("/api/v1/relationships/request", authMiddleware.Authenticate(relationshipHandler.HandleSendFriendRequest))
+		s.router.HandleFunc("/api/v1/relationships/friends", authMiddleware.Authenticate(relationshipHandler.HandleListFriends))
+		s.router.HandleFunc("/api/v1/relationships/requests", authMiddleware.Authenticate(relationshipHandler.HandleListFriendRequests))
+		// IDを含むエンドポイント
+		s.router.HandleFunc("/api/v1/relationships/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+			if strings.HasSuffix(path, "/accept") {
+				relationshipHandler.HandleAcceptFriendRequest(w, r)
+			} else if strings.HasSuffix(path, "/reject") {
+				relationshipHandler.HandleRejectFriendRequest(w, r)
+			} else if strings.HasSuffix(path, "/block") {
+				relationshipHandler.HandleBlockUser(w, r)
+			} else if r.Method == http.MethodDelete {
+				relationshipHandler.HandleRemoveRelationship(w, r)
+			}
+		}))
+	}
 
-	// Morning Calls
-	// s.router.HandleFunc("/api/v1/morning-calls", deps.AuthMiddleware.Authenticate(morningCallHandler.HandleMorningCalls))
+	// Morning Callsエンドポイント
+	if morningCallHandler != nil && authMiddleware != nil {
+		// 一覧系
+		s.router.HandleFunc("/api/v1/morning-calls/sent", authMiddleware.Authenticate(morningCallHandler.HandleListSent))
+		s.router.HandleFunc("/api/v1/morning-calls/received", authMiddleware.Authenticate(morningCallHandler.HandleListReceived))
+
+		// CRUD操作
+		s.router.HandleFunc("/api/v1/morning-calls", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost:
+				morningCallHandler.HandleCreate(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		}))
+
+		// IDを含むエンドポイント
+		s.router.HandleFunc("/api/v1/morning-calls/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+			path := r.URL.Path
+			if strings.HasSuffix(path, "/confirm") {
+				morningCallHandler.HandleConfirmWake(w, r)
+			} else {
+				switch r.Method {
+				case http.MethodGet:
+					morningCallHandler.HandleGet(w, r)
+				case http.MethodPut:
+					morningCallHandler.HandleUpdate(w, r)
+				case http.MethodDelete:
+					morningCallHandler.HandleDelete(w, r)
+				default:
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+				}
+			}
+		}))
+	}
 }
 
 // applyMiddleware はミドルウェアを適用します
@@ -312,4 +363,20 @@ func (s *HTTPServer) getAuthMiddleware() *middleware.AuthMiddleware {
 		return nil
 	}
 	return s.deps.AuthMiddleware
+}
+
+// getMorningCallHandler は依存性からMorningCallハンドラーを取得する
+func (s *HTTPServer) getMorningCallHandler() *handler.MorningCallHandler {
+	if s.deps == nil || s.deps.Handlers.MorningCall == nil {
+		return nil
+	}
+	return s.deps.Handlers.MorningCall
+}
+
+// getRelationshipHandler は依存性からRelationshipハンドラーを取得する
+func (s *HTTPServer) getRelationshipHandler() *handler.RelationshipHandler {
+	if s.deps == nil || s.deps.Handlers.Relationship == nil {
+		return nil
+	}
+	return s.deps.Handlers.Relationship
 }
