@@ -45,9 +45,9 @@ func (h *UserHandler) HandleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// バリデーション
-	if errors := req.Validate(); len(errors) > 0 {
+	if validationErrs := req.Validate(); len(validationErrs) > 0 {
 		var validationErrors []ValidationError
-		for field, message := range errors {
+		for field, message := range validationErrs {
 			validationErrors = append(validationErrors, ValidationError{
 				Field:   field,
 				Message: message,
@@ -118,13 +118,13 @@ func (h *UserHandler) HandleGetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 認証が必要
-	user, ok := h.RequireAuth(w, r)
+	currentUser, ok := h.RequireAuth(w, r)
 	if !ok {
 		return
 	}
 
 	// レスポンスを返す
-	h.SendJSON(w, http.StatusOK, h.convertToUserDTO(user))
+	h.SendJSON(w, http.StatusOK, h.convertToUserDTO(currentUser))
 }
 
 // HandleSearchUsers はユーザーを検索する
@@ -151,12 +151,12 @@ func (h *UserHandler) HandleSearchUsers(w http.ResponseWriter, r *http.Request) 
 
 	// TODO: ユーザー検索機能は未実装
 	// 現在は空の結果を返す
-	users := []response.UserDTO{}
+	var users []response.UserDTO
 
 	// レスポンスを返す
 	h.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"users": users,
-		"count": len(users),
+		"users":   users,
+		"count":   len(users),
 		"message": "検索機能は現在実装中です",
 	})
 }
@@ -195,7 +195,7 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 
 	// ユーザー情報を取得
 	// UserUseCaseのGetByIDメソッドを使用
-	user, err := h.userUseCase.GetByID(r.Context(), userID)
+	foundUser, err := h.userUseCase.GetByID(r.Context(), userID)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
 			h.SendNotFoundError(w, "ユーザー")
@@ -206,16 +206,16 @@ func (h *UserHandler) HandleGetUserByID(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// レスポンスを返す
-	h.SendJSON(w, http.StatusOK, h.convertToUserDTO(user))
+	h.SendJSON(w, http.StatusOK, h.convertToUserDTO(foundUser))
 }
 
 // convertToUserDTO はエンティティをDTOに変換する
-func (h *UserHandler) convertToUserDTO(user *entity.User) response.UserDTO {
+func (h *UserHandler) convertToUserDTO(u *entity.User) response.UserDTO {
 	return response.UserDTO{
-		ID:        user.ID,
-		Username:  user.Username,
-		Email:     user.Email,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
+		ID:        u.ID,
+		Username:  u.Username,
+		Email:     u.Email,
+		CreatedAt: u.CreatedAt,
+		UpdatedAt: u.UpdatedAt,
 	}
 }

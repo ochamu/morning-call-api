@@ -80,17 +80,17 @@ func main() {
 	authMiddleware := middleware.NewAuthMiddleware(sessionManager, userRepo)
 
 	// 依存性コンテナの作成
-	deps := &Dependencies{
+	deps := &server.Dependencies{
 		Config:            cfg,
 		RepositoryFactory: factory,
 		PasswordService:   passwordService,
 		SessionManager:    sessionManager,
-		Handlers: Handlers{
+		Handlers: server.Handlers{
 			Auth: authHandler,
 			User: userHandler,
 		},
 		AuthMiddleware: authMiddleware,
-		UseCases: UseCases{
+		UseCases: server.UseCases{
 			Auth: authUseCase,
 			User: userUseCase,
 			// TODO: モーニングコールユースケース（未実装）
@@ -138,43 +138,6 @@ func main() {
 	}
 
 	log.Println("サーバーを正常に停止しました")
-}
-
-// Dependencies はアプリケーションの依存性を保持します
-type Dependencies struct {
-	Config            *config.Config
-	RepositoryFactory repository.RepositoryFactory
-	PasswordService   *auth.PasswordService
-	SessionManager    *auth.SessionManager
-	Handlers          Handlers
-	AuthMiddleware    *middleware.AuthMiddleware
-	UseCases          UseCases
-}
-
-// Handlers はすべてのハンドラーを保持します
-type Handlers struct {
-	Auth *handler.AuthHandler
-	User *handler.UserHandler
-	// TODO: 他のハンドラーを追加
-}
-
-// UseCases はすべてのユースケースを保持します
-type UseCases struct {
-	Auth *authUC.AuthUseCase
-	User *userUC.UserUseCase
-	// TODO: モーニングコールユースケース（未実装）
-	// CreateMorningCall   *morningCallUC.CreateMorningCallUseCase
-	// UpdateMorningCall   *morningCallUC.UpdateMorningCallUseCase
-	// DeleteMorningCall   *morningCallUC.DeleteMorningCallUseCase
-	// ListMorningCalls    *morningCallUC.ListMorningCallsUseCase
-	// ConfirmWake         *morningCallUC.ConfirmWakeUseCase
-	SendFriendRequest   *relationshipUC.SendFriendRequestUseCase
-	AcceptFriendRequest *relationshipUC.AcceptFriendRequestUseCase
-	RejectFriendRequest *relationshipUC.RejectFriendRequestUseCase
-	BlockUser           *relationshipUC.BlockUserUseCase
-	RemoveRelationship  *relationshipUC.RemoveRelationshipUseCase
-	ListFriends         *relationshipUC.ListFriendsUseCase
-	ListFriendRequests  *relationshipUC.ListFriendRequestsUseCase
 }
 
 // repositoryFactory はリポジトリファクトリーの実装です

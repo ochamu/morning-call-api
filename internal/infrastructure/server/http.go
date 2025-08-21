@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"reflect"
 	"runtime/debug"
 	"time"
 
@@ -20,11 +19,11 @@ type HTTPServer struct {
 	server *http.Server
 	router *http.ServeMux
 	config *config.Config
-	deps   interface{} // 依存性コンテナ（main.goのDependencies）
+	deps   *Dependencies // 依存性コンテナ
 }
 
 // NewHTTPServer は新しいHTTPサーバーを作成します
-func NewHTTPServer(cfg *config.Config, deps interface{}) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, deps *Dependencies) *HTTPServer {
 	router := http.NewServeMux()
 
 	srv := &HTTPServer{
@@ -57,14 +56,13 @@ func (s *HTTPServer) setupRoutes() {
 	// APIバージョン情報
 	s.router.HandleFunc("/api/v1", s.handleAPIInfo)
 
-	// 依存性を取得（リフレクションを使用してアクセス）
-	// main.goのDependencies構造体を参照
+	// 依存性を取得
 	if s.deps == nil {
 		log.Println("警告: 依存性が設定されていません")
 		return
 	}
 
-	// リフレクションを使用してハンドラーを取得
+	// ハンドラーを取得
 	authHandler := s.getAuthHandler()
 	userHandler := s.getUserHandler()
 	authMiddleware := s.getAuthMiddleware()
@@ -292,46 +290,24 @@ type ValidationError struct {
 
 // getAuthHandler は依存性からAuthハンドラーを取得する
 func (s *HTTPServer) getAuthHandler() *handler.AuthHandler {
-	// リフレクションを使用してHandlersフィールドにアクセス
-	v := reflect.ValueOf(s.deps).Elem()
-	handlersField := v.FieldByName("Handlers")
-	if handlersField.IsValid() {
-		authField := handlersField.FieldByName("Auth")
-		if authField.IsValid() && !authField.IsNil() {
-			if authHandler, ok := authField.Interface().(*handler.AuthHandler); ok {
-				return authHandler
-			}
-		}
+	if s.deps == nil || s.deps.Handlers.Auth == nil {
+		return nil
 	}
-
-	return nil
+	return s.deps.Handlers.Auth
 }
 
 // getUserHandler は依存性からUserハンドラーを取得する
 func (s *HTTPServer) getUserHandler() *handler.UserHandler {
-	v := reflect.ValueOf(s.deps).Elem()
-	handlersField := v.FieldByName("Handlers")
-	if handlersField.IsValid() {
-		userField := handlersField.FieldByName("User")
-		if userField.IsValid() && !userField.IsNil() {
-			if userHandler, ok := userField.Interface().(*handler.UserHandler); ok {
-				return userHandler
-			}
-		}
+	if s.deps == nil || s.deps.Handlers.User == nil {
+		return nil
 	}
-
-	return nil
+	return s.deps.Handlers.User
 }
 
 // getAuthMiddleware は依存性から認証ミドルウェアを取得する
 func (s *HTTPServer) getAuthMiddleware() *middleware.AuthMiddleware {
-	v := reflect.ValueOf(s.deps).Elem()
-	authMiddlewareField := v.FieldByName("AuthMiddleware")
-	if authMiddlewareField.IsValid() && !authMiddlewareField.IsNil() {
-		if authMiddleware, ok := authMiddlewareField.Interface().(*middleware.AuthMiddleware); ok {
-			return authMiddleware
-		}
+	if s.deps == nil || s.deps.AuthMiddleware == nil {
+		return nil
 	}
-
-	return nil
+	return s.deps.AuthMiddleware
 }

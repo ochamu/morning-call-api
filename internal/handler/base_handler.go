@@ -185,7 +185,7 @@ func (h *BaseHandler) GetQueryParam(r *http.Request, key string, defaultValue st
 }
 
 // GetPathParam はパスパラメータを取得する（将来的な拡張用）
-func (h *BaseHandler) GetPathParam(r *http.Request, key string) string {
+func (h *BaseHandler) GetPathParam(_ *http.Request, _ string) string {
 	// 標準ライブラリでは直接パスパラメータを取得できないため、
 	// ルーティング時に設定される値を使用する必要がある
 	// 現在は空文字列を返すが、将来的に実装を追加

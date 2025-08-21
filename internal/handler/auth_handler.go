@@ -45,9 +45,9 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// バリデーション
-	if errors := req.Validate(); len(errors) > 0 {
+	if validationErrs := req.Validate(); len(validationErrs) > 0 {
 		var validationErrors []ValidationError
-		for field, message := range errors {
+		for field, message := range validationErrs {
 			validationErrors = append(validationErrors, ValidationError{
 				Field:   field,
 				Message: message,
