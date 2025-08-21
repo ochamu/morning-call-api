@@ -19,7 +19,8 @@ func generateTestRelationshipID(index int) string {
 	return generateTestID("rel", index)
 }
 
+// TODO: モーニングコール機能実装時に使用予定
 // generateTestMorningCallID はテスト用のモーニングコールIDを生成する
-func generateTestMorningCallID(index int) string {
-	return generateTestID("mc", index)
-}
+// func generateTestMorningCallID(index int) string {
+// 	return generateTestID("mc", index)
+// }
