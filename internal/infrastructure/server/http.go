@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/ochamu/morning-call-api/internal/config"
+	"github.com/ochamu/morning-call-api/internal/handler"
+	"github.com/ochamu/morning-call-api/internal/handler/middleware"
 )
 
 // HTTPServer はHTTPサーバーの構造体です
@@ -17,11 +19,11 @@ type HTTPServer struct {
 	server *http.Server
 	router *http.ServeMux
 	config *config.Config
-	deps   interface{} // 依存性コンテナ（main.goのDependencies）
+	deps   *Dependencies // 依存性コンテナ
 }
 
 // NewHTTPServer は新しいHTTPサーバーを作成します
-func NewHTTPServer(cfg *config.Config, deps interface{}) *HTTPServer {
+func NewHTTPServer(cfg *config.Config, deps *Dependencies) *HTTPServer {
 	router := http.NewServeMux()
 
 	srv := &HTTPServer{
@@ -54,21 +56,48 @@ func (s *HTTPServer) setupRoutes() {
 	// APIバージョン情報
 	s.router.HandleFunc("/api/v1", s.handleAPIInfo)
 
-	// TODO: 各リソースのハンドラーを追加
-	// Authentication
-	// s.router.HandleFunc("/api/v1/auth/login", s.handleLogin)
-	// s.router.HandleFunc("/api/v1/auth/logout", s.handleLogout)
+	// 依存性を取得
+	if s.deps == nil {
+		log.Println("警告: 依存性が設定されていません")
+		return
+	}
 
-	// Users
-	// s.router.HandleFunc("/api/v1/users/register", s.handleUserRegister)
-	// s.router.HandleFunc("/api/v1/users/me", s.handleGetCurrentUser)
+	// ハンドラーを取得
+	authHandler := s.getAuthHandler()
+	userHandler := s.getUserHandler()
+	authMiddleware := s.getAuthMiddleware()
 
+	if authHandler == nil || userHandler == nil {
+		log.Println("警告: ハンドラーが設定されていません")
+		return
+	}
+
+	// 認証エンドポイント（認証不要）
+	s.router.HandleFunc("/api/v1/auth/login", authHandler.HandleLogin)
+	s.router.HandleFunc("/api/v1/auth/validate", authHandler.HandleValidateSession)
+	s.router.HandleFunc("/api/v1/users/register", userHandler.HandleRegister)
+
+	// 認証が必要なエンドポイント
+	if authMiddleware != nil {
+		// 認証エンドポイント
+		s.router.HandleFunc("/api/v1/auth/logout", authMiddleware.Authenticate(authHandler.HandleLogout))
+		s.router.HandleFunc("/api/v1/auth/me", authMiddleware.Authenticate(authHandler.HandleGetCurrentUser))
+		s.router.HandleFunc("/api/v1/auth/refresh", authMiddleware.Authenticate(authHandler.HandleRefreshSession))
+
+		// ユーザーエンドポイント
+		s.router.HandleFunc("/api/v1/users/profile", authMiddleware.Authenticate(userHandler.HandleGetProfile))
+		s.router.HandleFunc("/api/v1/users/search", authMiddleware.Authenticate(userHandler.HandleSearchUsers))
+		// ユーザーIDによる取得（パスパラメータ対応）
+		s.router.HandleFunc("/api/v1/users/", authMiddleware.Authenticate(userHandler.HandleGetUserByID))
+	}
+
+	// TODO: 他のリソースのハンドラーを追加
 	// Relationships
-	// s.router.HandleFunc("/api/v1/relationships/request", s.handleSendFriendRequest)
-	// s.router.HandleFunc("/api/v1/relationships/friends", s.handleListFriends)
+	// s.router.HandleFunc("/api/v1/relationships/request", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleSendFriendRequest))
+	// s.router.HandleFunc("/api/v1/relationships/friends", deps.AuthMiddleware.Authenticate(relationshipHandler.HandleListFriends))
 
 	// Morning Calls
-	// s.router.HandleFunc("/api/v1/morning-calls", s.handleMorningCalls)
+	// s.router.HandleFunc("/api/v1/morning-calls", deps.AuthMiddleware.Authenticate(morningCallHandler.HandleMorningCalls))
 }
 
 // applyMiddleware はミドルウェアを適用します
@@ -118,12 +147,14 @@ func (s *HTTPServer) recoveryMiddleware(next http.Handler) http.Handler {
 				// エラーレスポンスを返す
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]interface{}{
+				if err := json.NewEncoder(w).Encode(map[string]interface{}{
 					"error": map[string]string{
 						"code":    "INTERNAL_ERROR",
 						"message": "内部エラーが発生しました",
 					},
-				})
+				}); err != nil {
+					log.Printf("パニックリカバリー時のエラーレスポンス送信に失敗しました: %v", err)
+				}
 			}
 		}()
 
@@ -258,3 +289,27 @@ type ValidationError struct {
 // 	}
 // 	sendJSONResponse(w, status, response)
 // }
+
+// getAuthHandler は依存性からAuthハンドラーを取得する
+func (s *HTTPServer) getAuthHandler() *handler.AuthHandler {
+	if s.deps == nil || s.deps.Handlers.Auth == nil {
+		return nil
+	}
+	return s.deps.Handlers.Auth
+}
+
+// getUserHandler は依存性からUserハンドラーを取得する
+func (s *HTTPServer) getUserHandler() *handler.UserHandler {
+	if s.deps == nil || s.deps.Handlers.User == nil {
+		return nil
+	}
+	return s.deps.Handlers.User
+}
+
+// getAuthMiddleware は依存性から認証ミドルウェアを取得する
+func (s *HTTPServer) getAuthMiddleware() *middleware.AuthMiddleware {
+	if s.deps == nil || s.deps.AuthMiddleware == nil {
+		return nil
+	}
+	return s.deps.AuthMiddleware
+}
