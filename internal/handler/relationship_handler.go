@@ -20,6 +20,7 @@ type RelationshipHandler struct {
 	acceptFriendRequestUC *relUseCase.AcceptFriendRequestUseCase
 	rejectFriendRequestUC *relUseCase.RejectFriendRequestUseCase
 	blockUserUC           *relUseCase.BlockUserUseCase
+	blockRelationshipUC   *relUseCase.BlockRelationshipUseCase
 	removeRelationshipUC  *relUseCase.RemoveRelationshipUseCase
 	listFriendsUC         *relUseCase.ListFriendsUseCase
 	listFriendRequestsUC  *relUseCase.ListFriendRequestsUseCase
@@ -33,6 +34,7 @@ func NewRelationshipHandler(
 	acceptFriendRequestUC *relUseCase.AcceptFriendRequestUseCase,
 	rejectFriendRequestUC *relUseCase.RejectFriendRequestUseCase,
 	blockUserUC *relUseCase.BlockUserUseCase,
+	blockRelationshipUC *relUseCase.BlockRelationshipUseCase,
 	removeRelationshipUC *relUseCase.RemoveRelationshipUseCase,
 	listFriendsUC *relUseCase.ListFriendsUseCase,
 	listFriendRequestsUC *relUseCase.ListFriendRequestsUseCase,
@@ -45,6 +47,7 @@ func NewRelationshipHandler(
 		acceptFriendRequestUC: acceptFriendRequestUC,
 		rejectFriendRequestUC: rejectFriendRequestUC,
 		blockUserUC:           blockUserUC,
+		blockRelationshipUC:   blockRelationshipUC,
 		removeRelationshipUC:  removeRelationshipUC,
 		listFriendsUC:         listFriendsUC,
 		listFriendRequestsUC:  listFriendRequestsUC,
@@ -82,6 +85,10 @@ func (h *RelationshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *
 	})
 	if err != nil {
 		// エラー内容に応じて適切なレスポンスを返す
+		if strings.Contains(err.Error(), "自分自身") {
+			h.SendError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
+			return
+		}
 		if strings.Contains(err.Error(), "既に") || strings.Contains(err.Error(), "ブロック") {
 			h.SendError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 			return
@@ -95,7 +102,10 @@ func (h *RelationshipHandler) HandleSendFriendRequest(w http.ResponseWriter, r *
 	}
 
 	// レスポンス
-	h.SendJSON(w, http.StatusCreated, response.NewRelationshipResponse(output.Relationship))
+	h.SendJSON(w, http.StatusCreated, map[string]interface{}{
+		"relationship": response.NewRelationshipResponse(output.Relationship),
+		"id":          output.Relationship.ID,
+	})
 }
 
 // HandleAcceptFriendRequest は友達リクエスト承認のハンドラー
@@ -134,7 +144,9 @@ func (h *RelationshipHandler) HandleAcceptFriendRequest(w http.ResponseWriter, r
 	}
 
 	// レスポンス
-	h.SendJSON(w, http.StatusOK, response.NewRelationshipResponse(output.Relationship))
+	h.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"relationship": response.NewRelationshipResponse(output.Relationship),
+	})
 }
 
 // HandleRejectFriendRequest は友達リクエスト拒否のハンドラー
@@ -189,18 +201,18 @@ func (h *RelationshipHandler) HandleBlockUser(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// URLパラメータからユーザーIDを取得
+	// URLパラメータから関係IDを取得
 	parts := strings.Split(r.URL.Path, "/")
 	if len(parts) < 5 || parts[len(parts)-1] != "block" {
 		h.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", "無効なリクエストパスです", nil)
 		return
 	}
-	targetUserID := parts[len(parts)-2]
+	relationshipID := parts[len(parts)-2]
 
-	// ユーザーブロック
-	output, err := h.blockUserUC.Execute(r.Context(), relUseCase.BlockUserInput{
-		BlockerID: currentUser.ID,
-		BlockedID: targetUserID,
+	// 関係をブロック
+	output, err := h.blockRelationshipUC.Execute(r.Context(), relUseCase.BlockRelationshipInput{
+		RelationshipID: relationshipID,
+		BlockerID:      currentUser.ID,
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "見つかりません") {
@@ -216,7 +228,9 @@ func (h *RelationshipHandler) HandleBlockUser(w http.ResponseWriter, r *http.Req
 	}
 
 	// レスポンス
-	h.SendJSON(w, http.StatusOK, response.NewRelationshipResponse(output.Relationship))
+	h.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"relationship": response.NewRelationshipResponse(output.Relationship),
+	})
 }
 
 // HandleRemoveRelationship は関係削除のハンドラー
@@ -255,7 +269,9 @@ func (h *RelationshipHandler) HandleRemoveRelationship(w http.ResponseWriter, r 
 	}
 
 	// レスポンス
-	h.SendJSON(w, http.StatusNoContent, nil)
+	h.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"message": "関係を削除しました",
+	})
 }
 
 // HandleListFriends は友達一覧取得のハンドラー
@@ -344,5 +360,5 @@ func (h *RelationshipHandler) HandleListFriendRequests(w http.ResponseWriter, r 
 	}
 
 	// レスポンス
-	h.SendJSON(w, http.StatusOK, response.NewRelationshipListResponse(relationships))
+	h.SendJSON(w, http.StatusOK, response.NewFriendRequestListResponse(relationships))
 }

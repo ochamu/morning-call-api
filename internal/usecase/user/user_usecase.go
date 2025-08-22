@@ -55,7 +55,7 @@ func (uc *UserUseCase) Register(ctx context.Context, input RegisterInput) (*Regi
 		return nil, fmt.Errorf("failed to check username existence: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("ユーザー名 '%s' は既に使用されています", input.Username)
+		return nil, fmt.Errorf("%w: ユーザー名 '%s' は既に使用されています", repository.ErrAlreadyExists, input.Username)
 	}
 
 	// メールアドレスの重複チェック
@@ -64,7 +64,7 @@ func (uc *UserUseCase) Register(ctx context.Context, input RegisterInput) (*Regi
 		return nil, fmt.Errorf("failed to check email existence: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("メールアドレス '%s' は既に登録されています", input.Email)
+		return nil, fmt.Errorf("%w: メールアドレス '%s' は既に登録されています", repository.ErrAlreadyExists, input.Email)
 	}
 
 	// パスワードのハッシュ化
@@ -148,4 +148,99 @@ func (uc *UserUseCase) VerifyPassword(ctx context.Context, username, password st
 	}
 
 	return user, nil
+}
+
+// SearchUsersInput はユーザー検索の入力パラメータ
+type SearchUsersInput struct {
+	Query     string // 検索クエリ（ユーザー名の部分一致）
+	ExcludeID string // 除外するユーザーID（通常は自分自身）
+	Limit     int    // 取得件数の上限
+}
+
+// SearchUsersOutput はユーザー検索の出力結果
+type SearchUsersOutput struct {
+	Users []*entity.User // 検索結果のユーザーリスト
+	Total int            // 検索結果の総数
+}
+
+// SearchUsers はユーザーを検索する
+func (uc *UserUseCase) SearchUsers(ctx context.Context, input SearchUsersInput) (*SearchUsersOutput, error) {
+	// 入力検証
+	if input.Query == "" {
+		return nil, fmt.Errorf("検索クエリは必須です")
+	}
+	
+	// Limitのデフォルト値
+	if input.Limit <= 0 {
+		input.Limit = 100
+	}
+	
+	// 全ユーザーを取得（簡易的な実装）
+	// 本来はリポジトリにSearchメソッドを実装すべき
+	allUsers, err := uc.userRepo.FindAll(ctx, 0, 1000)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return &SearchUsersOutput{
+				Users: []*entity.User{},
+				Total: 0,
+			}, nil
+		}
+		return nil, fmt.Errorf("ユーザー検索に失敗しました: %w", err)
+	}
+	
+	// フィルタリング（部分一致検索）
+	var filteredUsers []*entity.User
+	for _, user := range allUsers {
+		// 自分自身を除外
+		if user.ID == input.ExcludeID {
+			continue
+		}
+		
+		// ユーザー名の部分一致検索（大文字小文字を区別しない）
+		if containsIgnoreCase(user.Username, input.Query) {
+			filteredUsers = append(filteredUsers, user)
+			
+			// 制限に達したら終了
+			if len(filteredUsers) >= input.Limit {
+				break
+			}
+		}
+	}
+	
+	return &SearchUsersOutput{
+		Users: filteredUsers,
+		Total: len(filteredUsers),
+	}, nil
+}
+
+// containsIgnoreCase は大文字小文字を区別せずに部分一致検索を行う
+func containsIgnoreCase(str, substr string) bool {
+	// 簡易的な実装
+	// 本来はstrings.ContainsやUnicode正規化を考慮すべき
+	for i := 0; i <= len(str)-len(substr); i++ {
+		match := true
+		for j := 0; j < len(substr); j++ {
+			if i+j >= len(str) {
+				match = false
+				break
+			}
+			// 大文字小文字を区別しない比較
+			if toLower(str[i+j]) != toLower(substr[j]) {
+				match = false
+				break
+			}
+		}
+		if match {
+			return true
+		}
+	}
+	return false
+}
+
+// toLower は文字を小文字に変換する（ASCII範囲のみ）
+func toLower(b byte) byte {
+	if b >= 'A' && b <= 'Z' {
+		return b + ('a' - 'A')
+	}
+	return b
 }

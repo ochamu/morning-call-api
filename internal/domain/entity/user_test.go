@@ -594,60 +594,69 @@ func TestValidatePassword(t *testing.T) {
 		},
 		{
 			name:        "長すぎるパスワード",
-			password:    strings.Repeat("a", 95) + "A1!",
-			expectError: false, // 100文字はOK
+			password:    strings.Repeat("a", 68) + "A1!!", // 72文字
+			expectError: false, // 72文字はOK（bcryptの制限）
 		},
 		{
-			name:        "100文字を超えるパスワード",
-			password:    strings.Repeat("a", 98) + "A1!",
+			name:        "72文字を超えるパスワード",
+			password:    strings.Repeat("a", 70) + "A1!!", // 74文字
 			expectError: true,
-			errorMsg:    "パスワードは100文字以内である必要があります",
+			errorMsg:    "パスワードは72文字以内である必要があります",
 		},
 		{
-			name:        "大文字がない",
+			name:        "大文字なし",
 			password:    "password123!",
 			expectError: true,
 			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
 		},
 		{
-			name:        "小文字がない",
+			name:        "小文字なし",
 			password:    "PASSWORD123!",
 			expectError: true,
 			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
 		},
 		{
-			name:        "数字がない",
+			name:        "数字なし",
 			password:    "Password!",
 			expectError: true,
 			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
 		},
 		{
-			name:        "特殊文字がない",
+			name:        "特殊文字なし",
 			password:    "Password123",
 			expectError: true,
 			errorMsg:    "パスワードは大文字、小文字、数字、特殊文字をそれぞれ1文字以上含む必要があります",
 		},
 		{
-			name:        "様々な特殊文字を含む",
-			password:    "Pass123@#$%",
+			name:        "各種特殊文字を含む",
+			password:    "Pass@word123",
+			expectError: false,
+		},
+		{
+			name:        "別の特殊文字パターン",
+			password:    "Pass#word456",
+			expectError: false,
+		},
+		{
+			name:        "特殊文字でブラケット類",
+			password:    "Pass[word]789",
 			expectError: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reason := ValidatePassword(tt.password)
-
+			result := ValidatePassword(tt.password)
+			
 			if tt.expectError {
-				if reason.IsOK() {
-					t.Errorf("エラーが期待されたが、成功した")
-				}
-				if reason.Error() != tt.errorMsg {
-					t.Errorf("期待されたエラーメッセージ: %s, 実際: %s", tt.errorMsg, reason.Error())
+				if result.IsOK() {
+					t.Errorf("エラーが期待されたが成功した")
+				} else if string(result) != tt.errorMsg {
+					t.Errorf("期待するエラーメッセージ = %q, 実際 = %q", tt.errorMsg, string(result))
 				}
 			} else {
-				if reason.IsNG() {
-					t.Errorf("成功が期待されたが、エラーが発生: %s", reason.Error())
+				if !result.IsOK() {
+					t.Errorf("成功が期待されたがエラーだった: %s", string(result))
 				}
 			}
 		})

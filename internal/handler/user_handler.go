@@ -124,7 +124,9 @@ func (h *UserHandler) HandleGetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// レスポンスを返す
-	h.SendJSON(w, http.StatusOK, h.convertToUserDTO(currentUser))
+	h.SendJSON(w, http.StatusOK, map[string]interface{}{
+		"user": h.convertToUserDTO(currentUser),
+	})
 }
 
 // HandleSearchUsers はユーザーを検索する
@@ -137,7 +139,7 @@ func (h *UserHandler) HandleSearchUsers(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// 認証が必要
-	_, ok := h.RequireAuth(w, r)
+	currentUser, ok := h.RequireAuth(w, r)
 	if !ok {
 		return
 	}
@@ -149,15 +151,27 @@ func (h *UserHandler) HandleSearchUsers(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: ユーザー検索機能は未実装
-	// 現在は空の結果を返す
+	// ユーザー検索を実行
+	searchOutput, err := h.userUseCase.SearchUsers(r.Context(), user.SearchUsersInput{
+		Query:     query,
+		ExcludeID: currentUser.ID, // 自分自身を除外
+		Limit:     100,
+	})
+	if err != nil {
+		h.SendError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "ユーザー検索に失敗しました", nil)
+		return
+	}
+
+	// DTOに変換
 	var users []response.UserDTO
+	for _, u := range searchOutput.Users {
+		users = append(users, h.convertToUserDTO(u))
+	}
 
 	// レスポンスを返す
 	h.SendJSON(w, http.StatusOK, map[string]interface{}{
-		"users":   users,
-		"count":   len(users),
-		"message": "検索機能は現在実装中です",
+		"users": users,
+		"count": len(users),
 	})
 }
 

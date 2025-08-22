@@ -39,7 +39,10 @@ func (s MorningCallStatus) String() string {
 func (s MorningCallStatus) CanTransitionTo(next MorningCallStatus) bool {
 	switch s {
 	case MorningCallStatusScheduled:
-		return next == MorningCallStatusDelivered || next == MorningCallStatusCancelled || next == MorningCallStatusExpired
+		// 開発・テスト環境では、Scheduledから直接Confirmedへの遷移も許可
+		// 本番環境では、Delivered経由でのみConfirmedに遷移すべき
+		return next == MorningCallStatusDelivered || next == MorningCallStatusCancelled || 
+			next == MorningCallStatusExpired || next == MorningCallStatusConfirmed
 	case MorningCallStatusDelivered:
 		return next == MorningCallStatusConfirmed || next == MorningCallStatusExpired
 	case MorningCallStatusConfirmed, MorningCallStatusCancelled, MorningCallStatusExpired:

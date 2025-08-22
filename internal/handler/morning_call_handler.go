@@ -88,9 +88,9 @@ func (h *MorningCallHandler) HandleUpdate(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// URLからIDを取得
-	morningCallID := h.extractIDFromPath(r.URL.Path, "/api/v1/morning-calls/")
-	if morningCallID == "" {
+	// コンテキストからIDを取得
+	morningCallID, ok := r.Context().Value("morningCallID").(string)
+	if !ok || morningCallID == "" {
 		h.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", "モーニングコールIDが指定されていません", nil)
 		return
 	}
@@ -114,6 +114,8 @@ func (h *MorningCallHandler) HandleUpdate(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if strings.Contains(err.Error(), "見つかりません") {
 			h.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
+		} else if strings.Contains(err.Error(), "送信者のみが") {
+			h.SendError(w, http.StatusForbidden, "FORBIDDEN", err.Error(), nil)
 		} else {
 			h.SendError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		}
@@ -134,9 +136,9 @@ func (h *MorningCallHandler) HandleDelete(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// URLからIDを取得
-	morningCallID := h.extractIDFromPath(r.URL.Path, "/api/v1/morning-calls/")
-	if morningCallID == "" {
+	// コンテキストからIDを取得
+	morningCallID, ok := r.Context().Value("morningCallID").(string)
+	if !ok || morningCallID == "" {
 		h.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", "モーニングコールIDが指定されていません", nil)
 		return
 	}
@@ -151,14 +153,18 @@ func (h *MorningCallHandler) HandleDelete(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		if strings.Contains(err.Error(), "見つかりません") {
 			h.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
+		} else if strings.Contains(err.Error(), "送信者のみが") {
+			h.SendError(w, http.StatusForbidden, "FORBIDDEN", err.Error(), nil)
 		} else {
 			h.SendError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		}
 		return
 	}
 
-	// 204 No Content
-	w.WriteHeader(http.StatusNoContent)
+	// 削除成功レスポンス
+	h.SendJSON(w, http.StatusOK, map[string]string{
+		"message": "モーニングコールを削除しました",
+	})
 }
 
 // HandleGet はモーニングコール詳細取得のハンドラー
@@ -170,9 +176,9 @@ func (h *MorningCallHandler) HandleGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// URLからIDを取得
-	morningCallID := h.extractIDFromPath(r.URL.Path, "/api/v1/morning-calls/")
-	if morningCallID == "" {
+	// コンテキストからIDを取得
+	morningCallID, ok := r.Context().Value("morningCallID").(string)
+	if !ok || morningCallID == "" {
 		h.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", "モーニングコールIDが指定されていません", nil)
 		return
 	}
@@ -302,10 +308,9 @@ func (h *MorningCallHandler) HandleConfirmWake(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// URLからIDを取得
-	morningCallID := h.extractIDFromPath(r.URL.Path, "/api/v1/morning-calls/")
-	morningCallID = strings.TrimSuffix(morningCallID, "/confirm")
-	if morningCallID == "" {
+	// コンテキストからIDを取得
+	morningCallID, ok := r.Context().Value("morningCallID").(string)
+	if !ok || morningCallID == "" {
 		h.SendError(w, http.StatusBadRequest, "INVALID_REQUEST", "モーニングコールIDが指定されていません", nil)
 		return
 	}
@@ -320,6 +325,8 @@ func (h *MorningCallHandler) HandleConfirmWake(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		if strings.Contains(err.Error(), "見つかりません") {
 			h.SendError(w, http.StatusNotFound, "NOT_FOUND", err.Error(), nil)
+		} else if strings.Contains(err.Error(), "受信者のみが起床確認できます") {
+			h.SendError(w, http.StatusForbidden, "FORBIDDEN", err.Error(), nil)
 		} else {
 			h.SendError(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error(), nil)
 		}
@@ -354,17 +361,3 @@ func (h *MorningCallHandler) convertToMorningCallResponse(mc *entity.MorningCall
 	return resp
 }
 
-// extractIDFromPath はURLパスからIDを抽出する
-func (h *MorningCallHandler) extractIDFromPath(path, prefix string) string {
-	if !strings.HasPrefix(path, prefix) {
-		return ""
-	}
-
-	idPath := strings.TrimPrefix(path, prefix)
-	// /confirm などのサフィックスを除去
-	if idx := strings.Index(idPath, "/"); idx != -1 {
-		idPath = idPath[:idx]
-	}
-
-	return idPath
-}

@@ -40,4 +40,5 @@ go.work.sum
 
 .serena/
 .context/
-.docs/
+.docs/server
+morning-call-api
