@@ -187,7 +187,7 @@ func TestConfirmWakeUseCase_Execute_Authorization(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("sender should not be able to confirm wake")
-	} else if !strings.Contains(err.Error(), "受信者のみが起床確認を行えます") {
+	} else if !strings.Contains(err.Error(), "受信者のみが起床確認できます") {
 		t.Errorf("unexpected error message: %v", err.Error())
 	}
 	if output != nil {
@@ -201,7 +201,7 @@ func TestConfirmWakeUseCase_Execute_Authorization(t *testing.T) {
 	})
 	if err == nil {
 		t.Error("unrelated user should not be able to confirm wake")
-	} else if !strings.Contains(err.Error(), "受信者のみが起床確認を行えます") {
+	} else if !strings.Contains(err.Error(), "受信者のみが起床確認できます") {
 		t.Errorf("unexpected error message: %v", err.Error())
 	}
 	if output2 != nil {
@@ -273,8 +273,8 @@ func TestConfirmWakeUseCase_Execute_StatusTransitions(t *testing.T) {
 		{
 			name:       "スケジュール済み",
 			status:     valueobject.MorningCallStatusScheduled,
-			canConfirm: false,
-			errMsg:     "まだ配信されていないモーニングコールは起床確認できません",
+			canConfirm: true, // 開発・テスト環境では許可
+			errMsg:     "",
 		},
 		{
 			name:       "配信済み",

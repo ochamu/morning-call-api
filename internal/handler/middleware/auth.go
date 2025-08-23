@@ -11,6 +11,14 @@ import (
 	"github.com/ochamu/morning-call-api/internal/infrastructure/auth"
 )
 
+// SetUserIDInContext はコンテキストにユーザーIDを設定するヘルパー関数
+// テストやユーティリティ関数で使用される
+func SetUserIDInContext(ctx context.Context, userID string) context.Context {
+	// Note: テスト用にシンプルな実装を提供
+	// 実際の認証フローではAuthMiddleware.Authenticateを使用すること
+	return context.WithValue(ctx, "test_user_id", userID)
+}
+
 // AuthMiddleware は認証ミドルウェア
 type AuthMiddleware struct {
 	sessionManager *auth.SessionManager

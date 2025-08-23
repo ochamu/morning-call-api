@@ -47,6 +47,24 @@ func NewRelationshipListResponse(relationships []*entity.Relationship) *Relation
 	return res
 }
 
+// FriendRequestListResponse は友達リクエスト一覧のレスポンス
+type FriendRequestListResponse struct {
+	Requests []*RelationshipResponse `json:"requests"`
+	Total    int                     `json:"total"`
+}
+
+// NewFriendRequestListResponse はentityのスライスからレスポンスを作成
+func NewFriendRequestListResponse(relationships []*entity.Relationship) *FriendRequestListResponse {
+	res := &FriendRequestListResponse{
+		Requests: make([]*RelationshipResponse, 0, len(relationships)),
+		Total:    len(relationships),
+	}
+	for _, r := range relationships {
+		res.Requests = append(res.Requests, NewRelationshipResponse(r))
+	}
+	return res
+}
+
 // FriendResponse は友達情報のレスポンス
 type FriendResponse struct {
 	ID          string    `json:"id"`

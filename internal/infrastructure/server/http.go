@@ -26,27 +26,170 @@ type HTTPServer struct {
 // NewHTTPServer は新しいHTTPサーバーを作成します
 func NewHTTPServer(cfg *config.Config, deps *Dependencies) *HTTPServer {
 	router := http.NewServeMux()
-
-	srv := &HTTPServer{
+	
+	// ミドルウェアを作成
+	authMiddleware := deps.AuthMiddleware
+	
+	// ヘルスチェック
+	router.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status":"healthy"}`))
+	})
+	
+	// API情報
+	router.HandleFunc("/api/v1", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"name":"Morning Call API","version":"v1"}`))
+	})
+	
+	// 認証エンドポイント
+	router.HandleFunc("/api/v1/auth/login", deps.Handlers.Auth.HandleLogin)
+	router.HandleFunc("/api/v1/auth/logout", authMiddleware.Authenticate(deps.Handlers.Auth.HandleLogout))
+	
+	// ユーザーエンドポイント
+	router.HandleFunc("/api/v1/users/register", deps.Handlers.User.HandleRegister)
+	router.HandleFunc("/api/v1/users/me", authMiddleware.Authenticate(deps.Handlers.User.HandleGetProfile))
+	router.HandleFunc("/api/v1/users/search", authMiddleware.Authenticate(deps.Handlers.User.HandleSearchUsers))
+	
+	// リレーションシップエンドポイント
+	router.HandleFunc("/api/v1/relationships/request", authMiddleware.Authenticate(deps.Handlers.Relationship.HandleSendFriendRequest))
+	router.HandleFunc("/api/v1/relationships/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+		// /api/v1/relationships/{id}/* のパターンを処理
+		path := r.URL.Path
+		parts := strings.Split(strings.TrimPrefix(path, "/api/v1/relationships/"), "/")
+		
+		if len(parts) < 2 || parts[0] == "" {
+			http.Error(w, "Invalid relationship ID", http.StatusBadRequest)
+			return
+		}
+		
+		relationshipID := parts[0]
+		action := parts[1]
+		
+		switch action {
+		case "accept":
+			if r.Method == http.MethodPut {
+				// relationshipIDをコンテキストに設定
+				ctx := context.WithValue(r.Context(), "relationshipID", relationshipID)
+				deps.Handlers.Relationship.HandleAcceptFriendRequest(w, r.WithContext(ctx))
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		case "reject":
+			if r.Method == http.MethodPut {
+				ctx := context.WithValue(r.Context(), "relationshipID", relationshipID)
+				deps.Handlers.Relationship.HandleRejectFriendRequest(w, r.WithContext(ctx))
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		case "block":
+			if r.Method == http.MethodPut {
+				ctx := context.WithValue(r.Context(), "relationshipID", relationshipID)
+				deps.Handlers.Relationship.HandleBlockUser(w, r.WithContext(ctx))
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+		default:
+			// DELETE /api/v1/relationships/{id}
+			if r.Method == http.MethodDelete && action == "" {
+				ctx := context.WithValue(r.Context(), "relationshipID", relationshipID)
+				deps.Handlers.Relationship.HandleRemoveRelationship(w, r.WithContext(ctx))
+			} else {
+				http.Error(w, "Not found", http.StatusNotFound)
+			}
+		}
+	}))
+	router.HandleFunc("/api/v1/relationships/friends", authMiddleware.Authenticate(deps.Handlers.Relationship.HandleListFriends))
+	router.HandleFunc("/api/v1/relationships/requests", authMiddleware.Authenticate(deps.Handlers.Relationship.HandleListFriendRequests))
+	
+	// モーニングコールエンドポイント
+	router.HandleFunc("/api/v1/morning-calls", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			deps.Handlers.MorningCall.HandleCreate(w, r)
+		case http.MethodGet:
+			// クエリパラメータで判定
+			if r.URL.Query().Get("type") == "sent" {
+				deps.Handlers.MorningCall.HandleListSent(w, r)
+			} else if r.URL.Query().Get("type") == "received" {
+				deps.Handlers.MorningCall.HandleListReceived(w, r)
+			} else {
+				http.Error(w, "Query parameter 'type' is required (sent or received)", http.StatusBadRequest)
+			}
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))
+	
+	router.HandleFunc("/api/v1/morning-calls/sent", authMiddleware.Authenticate(deps.Handlers.MorningCall.HandleListSent))
+	router.HandleFunc("/api/v1/morning-calls/received", authMiddleware.Authenticate(deps.Handlers.MorningCall.HandleListReceived))
+	
+	// パスが/api/v1/morning-calls/で始まる全てのリクエストを処理
+	// Go標準のServeMuxは末尾スラッシュがある場合、そのプレフィックスで始まる全パスをマッチする
+	router.HandleFunc("/api/v1/morning-calls/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
+		// /api/v1/morning-calls/{id}/* のパターンを処理
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1/morning-calls/")
+		
+		// 空の場合は別のハンドラーで処理されるべき
+		if path == "" {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+		
+		// pathをスラッシュで分割
+		parts := strings.Split(path, "/")
+		morningCallID := parts[0]
+		
+		if morningCallID == "" {
+			http.Error(w, "Invalid morning call ID", http.StatusBadRequest)
+			return
+		}
+		
+		// /api/v1/morning-calls/{id}/confirm
+		if len(parts) > 1 && parts[1] == "confirm" {
+			if r.Method == http.MethodPut {
+				ctx := context.WithValue(r.Context(), "morningCallID", morningCallID)
+				deps.Handlers.MorningCall.HandleConfirmWake(w, r.WithContext(ctx))
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
+		
+		// /api/v1/morning-calls/{id}
+		switch r.Method {
+		case http.MethodGet:
+			ctx := context.WithValue(r.Context(), "morningCallID", morningCallID)
+			deps.Handlers.MorningCall.HandleGet(w, r.WithContext(ctx))
+		case http.MethodPut:
+			ctx := context.WithValue(r.Context(), "morningCallID", morningCallID)
+			deps.Handlers.MorningCall.HandleUpdate(w, r.WithContext(ctx))
+		case http.MethodDelete:
+			ctx := context.WithValue(r.Context(), "morningCallID", morningCallID)
+			deps.Handlers.MorningCall.HandleDelete(w, r.WithContext(ctx))
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))
+	
+	// HTTPサーバーを作成
+	addr := fmt.Sprintf(":%s", cfg.Server.Port)
+	server := &http.Server{
+		Addr:         addr,
+		Handler:      router,
+		ReadTimeout:  cfg.Server.ReadTimeout,
+		WriteTimeout: cfg.Server.WriteTimeout,
+		IdleTimeout:  cfg.Server.IdleTimeout,
+	}
+	
+	return &HTTPServer{
+		server: server,
 		router: router,
 		config: cfg,
 		deps:   deps,
 	}
-
-	// ルートの設定
-	srv.setupRoutes()
-
-	// HTTPサーバーの設定
-	srv.server = &http.Server{
-		Addr:           fmt.Sprintf(":%s", cfg.Server.Port),
-		Handler:        srv.applyMiddleware(router),
-		ReadTimeout:    cfg.Server.ReadTimeout,
-		WriteTimeout:   cfg.Server.WriteTimeout,
-		IdleTimeout:    cfg.Server.IdleTimeout,
-		MaxHeaderBytes: cfg.Server.MaxHeaderBytes,
-	}
-
-	return srv
 }
 
 // setupRoutes はルーティングを設定します
@@ -102,14 +245,51 @@ func (s *HTTPServer) setupRoutes() {
 		// IDを含むエンドポイント
 		s.router.HandleFunc("/api/v1/relationships/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path
+			// パスからIDを抽出
+			prefix := "/api/v1/relationships/"
+			if !strings.HasPrefix(path, prefix) {
+				http.Error(w, "Invalid path", http.StatusBadRequest)
+				return
+			}
+			
+			idPart := strings.TrimPrefix(path, prefix)
+			if idPart == "" {
+				http.Error(w, "Relationship ID is required", http.StatusBadRequest)
+				return
+			}
+			
+			// IDとサブパスを分離
+			relationshipID := idPart
+			if idx := strings.Index(idPart, "/"); idx != -1 {
+				relationshipID = idPart[:idx]
+			}
+			
+			// コンテキストにIDを追加
+			ctx := context.WithValue(r.Context(), "relationshipID", relationshipID)
+			r = r.WithContext(ctx)
+			
 			if strings.HasSuffix(path, "/accept") {
+				if r.Method != http.MethodPut {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
 				relationshipHandler.HandleAcceptFriendRequest(w, r)
 			} else if strings.HasSuffix(path, "/reject") {
+				if r.Method != http.MethodPut {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
 				relationshipHandler.HandleRejectFriendRequest(w, r)
 			} else if strings.HasSuffix(path, "/block") {
+				if r.Method != http.MethodPut {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
 				relationshipHandler.HandleBlockUser(w, r)
 			} else if r.Method == http.MethodDelete {
 				relationshipHandler.HandleRemoveRelationship(w, r)
+			} else {
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
 		}))
 	}
@@ -133,7 +313,34 @@ func (s *HTTPServer) setupRoutes() {
 		// IDを含むエンドポイント
 		s.router.HandleFunc("/api/v1/morning-calls/", authMiddleware.Authenticate(func(w http.ResponseWriter, r *http.Request) {
 			path := r.URL.Path
+			// パスからIDを抽出
+			prefix := "/api/v1/morning-calls/"
+			if !strings.HasPrefix(path, prefix) {
+				http.Error(w, "Invalid path", http.StatusBadRequest)
+				return
+			}
+			
+			idPart := strings.TrimPrefix(path, prefix)
+			if idPart == "" {
+				http.Error(w, "Morning call ID is required", http.StatusBadRequest)
+				return
+			}
+			
+			// IDとサブパスを分離
+			morningCallID := idPart
+			if idx := strings.Index(idPart, "/"); idx != -1 {
+				morningCallID = idPart[:idx]
+			}
+			
+			// コンテキストにIDを追加
+			ctx := context.WithValue(r.Context(), "morningCallID", morningCallID)
+			r = r.WithContext(ctx)
+			
 			if strings.HasSuffix(path, "/confirm") {
+				if r.Method != http.MethodPut {
+					http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+					return
+				}
 				morningCallHandler.HandleConfirmWake(w, r)
 			} else {
 				switch r.Method {

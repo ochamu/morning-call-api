@@ -23,6 +23,11 @@ func TestPasswordService_HashPassword(t *testing.T) {
 			wantErr:  false,
 		},
 		{
+			name:     "72バイトを超えるパスワード",
+			password: "ThisIsAVeryLongPasswordThatExceedsTheSeventyTwoByteLimitOf_Bcrypt_1234567890!@#$%^&*()",
+			wantErr:  false,
+		},
+		{
 			name:     "空のパスワード",
 			password: "",
 			wantErr:  true,
@@ -58,15 +63,15 @@ func TestPasswordService_HashPassword(t *testing.T) {
 				t.Error("HashPassword() returned plain password, not hashed")
 			}
 
-			// 同じパスワードは同じハッシュを生成することを確認
-			hash2, err := service.HashPassword(tt.password)
+			// bcryptはソルトがランダムなため、同じパスワードでも異なるハッシュが生成される
+			// 代わりに、生成されたハッシュで元のパスワードが検証できることを確認
+			valid, err := service.VerifyPassword(tt.password, hash)
 			if err != nil {
-				t.Errorf("HashPassword() second call error = %v", err)
+				t.Errorf("VerifyPassword() error = %v", err)
 				return
 			}
-
-			if hash != hash2 {
-				t.Error("HashPassword() same password produced different hashes")
+			if !valid {
+				t.Error("VerifyPassword() failed to verify the password with its own hash")
 			}
 		})
 	}

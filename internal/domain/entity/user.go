@@ -114,8 +114,9 @@ func ValidatePassword(password string) valueobject.NGReason {
 		return valueobject.NG("パスワードは8文字以上である必要があります")
 	}
 
-	if len(password) > 100 {
-		return valueobject.NG("パスワードは100文字以内である必要があります")
+	// bcryptの制限（72バイト）を考慮
+	if len(password) > 72 {
+		return valueobject.NG("パスワードは72文字以内である必要があります")
 	}
 
 	// パスワード強度の基本的なチェック

@@ -70,6 +70,7 @@ func main() {
 	acceptFriendRequestUC := relationshipUC.NewAcceptFriendRequestUseCase(relationshipRepo, userRepo)
 	rejectFriendRequestUC := relationshipUC.NewRejectFriendRequestUseCase(relationshipRepo, userRepo)
 	blockUserUC := relationshipUC.NewBlockUserUseCase(relationshipRepo, userRepo)
+	blockRelationshipUC := relationshipUC.NewBlockRelationshipUseCase(relationshipRepo, userRepo)
 	removeRelationshipUC := relationshipUC.NewRemoveRelationshipUseCase(relationshipRepo, userRepo)
 	listFriendsUC := relationshipUC.NewListFriendsUseCase(relationshipRepo, userRepo)
 	listFriendRequestsUC := relationshipUC.NewListFriendRequestsUseCase(relationshipRepo, userRepo)
@@ -90,6 +91,7 @@ func main() {
 		acceptFriendRequestUC,
 		rejectFriendRequestUC,
 		blockUserUC,
+		blockRelationshipUC,
 		removeRelationshipUC,
 		listFriendsUC,
 		listFriendRequestsUC,
@@ -125,6 +127,7 @@ func main() {
 			AcceptFriendRequest: acceptFriendRequestUC,
 			RejectFriendRequest: rejectFriendRequestUC,
 			BlockUser:           blockUserUC,
+			BlockRelationship:   blockRelationshipUC,
 			RemoveRelationship:  removeRelationshipUC,
 			ListFriends:         listFriendsUC,
 			ListFriendRequests:  listFriendRequestsUC,

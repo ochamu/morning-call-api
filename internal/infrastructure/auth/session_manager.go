@@ -18,6 +18,11 @@ type Session struct {
 	Data      map[string]interface{} // 追加のセッションデータ
 }
 
+// IsExpired はセッションが有効期限切れかどうかを判定する
+func (s *Session) IsExpired() bool {
+	return time.Now().After(s.ExpiresAt)
+}
+
 // SessionManager はセッション管理を行う
 type SessionManager struct {
 	sessions       map[string]*Session

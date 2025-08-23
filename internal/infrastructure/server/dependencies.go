@@ -44,6 +44,7 @@ type UseCases struct {
 	AcceptFriendRequest *relationshipUC.AcceptFriendRequestUseCase
 	RejectFriendRequest *relationshipUC.RejectFriendRequestUseCase
 	BlockUser           *relationshipUC.BlockUserUseCase
+	BlockRelationship   *relationshipUC.BlockRelationshipUseCase
 	RemoveRelationship  *relationshipUC.RemoveRelationshipUseCase
 	ListFriends         *relationshipUC.ListFriendsUseCase
 	ListFriendRequests  *relationshipUC.ListFriendRequestsUseCase
